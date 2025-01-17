@@ -42,7 +42,6 @@ TYPE_INDEX = {k:v for k, v in NAME_TYPE.items()}
 ABACUS_CMD="bash run_abacus.sh"
 
 DEFAULT_SCF_ARGS_ABACUS={
-    "pp_orb_elements": [], #if use, should be same lenth of orb_files and pp_files
     "orb_files": ["orb"],  #atomic number order
     "pp_files": ["upf"],  #atomic number order
     "proj_file": ["orb"], 
@@ -145,7 +144,7 @@ def make_scf_abacus(systems_train, systems_test=None, *,
 
 ### need parameters: orb_files, pp_files, proj_file
 def convert_data(systems_train, systems_test=None, *, 
-                no_model=True, model_file=None, pp_files=[], orb_files=[],
+                no_model=True, model_file=None, pp_files=[], 
                 dispatcher=None,**pre_args):
     #trace a model (if necessary)
     if not no_model:
@@ -170,21 +169,15 @@ def convert_data(systems_train, systems_test=None, *,
     if dispatcher=="dpdispatcher" and \
         pre_args["dpdispatcher_machine"]["context_type"].upper().find("LOCAL")==-1:
         #write relative path into INPUT and STRU
+        orb_files=pre_args["orb_files"]
         proj_file=pre_args["proj_file"]
         orb_files=["../../../"+str(os.path.basename(s)) for s in orb_files]
         pp_files=["../../../"+str(os.path.basename(s)) for s in pp_files]
         proj_file=["../../../"+str(os.path.basename(s)) for s in proj_file]
+        pre_args["orb_files"]=orb_files
         pre_args["proj_file"]=proj_file
         if not no_model:
             pre_args["model_file"]="../../../"+CMODEL_FILE
-    #if have pp_orb_elements, create pp_map and orb_map
-    pp_map={}
-    orb_map={}
-    if len(pre_args["pp_orb_elements"]) > 0:
-        assert(len(pre_args["pp_orb_elements"])==len(pp_files)), "the number of pp_orb_elements must be equal to the number of pp_files. "
-        pp_map=dict(zip(pre_args["pp_orb_elements"], pp_files))
-        assert(len(pre_args["pp_orb_elements"])==len(orb_files)), "the number of pp_orb_elements must be equal to the number of orb_files. "
-        orb_map=dict(zip(pre_args["pp_orb_elements"], orb_files))
     #init sys_data (dpdata)
     for i, sset in enumerate(train_sets+test_sets):
         try:
@@ -228,20 +221,9 @@ def convert_data(systems_train, systems_test=None, *,
             if os.path.isfile(f"{sys_paths[i]}/box.npy"):
                 sys_data={'atom_names':[TYPE_NAME[it] for it in nta.keys()], 'atom_numbs': list(nta.values()),
                         'cells': [cell_data[f]], 'coords': [frame_data[:,1:]]}
-            #if have pp_orb_elements, update pp_files and orb_files according to atom_names
-            pp_files_new=pp_files
-            orb_files_new=orb_files
-            if len(pre_args_new["pp_orb_elements"]) > 0:
-                pp_files_new=[]
-                orb_files_new=[]
-                for atom_name in sys_data["atom_names"]:
-                    print(f"atom_name={atom_name}")
-                    pp_files_new.append(pp_map[atom_name])
-                    orb_files_new.append(orb_map[atom_name])          
-            print(f"write ABACUS input files for {sys_paths[i]}/ABACUS/{f},pp_files={pp_files_new},orb_files={orb_files_new}")
             #write STRU file
             with open(f"{sys_paths[i]}/ABACUS/{f}/STRU", "w") as stru_file:
-                stru_file.write(make_abacus_scf_stru(sys_data, pp_files_new, orb_files_new, pre_args_new))
+                stru_file.write(make_abacus_scf_stru(sys_data, pp_files, pre_args_new))
             #write INPUT file
             with open(f"{sys_paths[i]}/ABACUS/{f}/INPUT", "w") as input_file:
                 input_file.write(make_abacus_scf_input(pre_args_new))

@@ -99,7 +99,7 @@ def make_abacus_scf_input(fp_params):
         ret += "exx_ccp_rmesh_times 1\n"
     return ret
 
-def make_abacus_scf_stru(sys_data, fp_pp_files, fp_orb_files, fp_params):
+def make_abacus_scf_stru(sys_data, fp_pp_files, fp_params):
     atom_names = sys_data['atom_names']
     atom_numbs = sys_data['atom_numbs']
     assert(len(atom_names) == len(fp_pp_files)), "the number of pp_files must be equal to the number of atom types. "
@@ -140,9 +140,9 @@ def make_abacus_scf_stru(sys_data, fp_pp_files, fp_orb_files, fp_params):
     assert(natom_tot == sum(atom_numbs))
     if "basis_type" in fp_params and fp_params["basis_type"]=="lcao":
         ret +="\nNUMERICAL_ORBITAL\n"
-        assert(len(fp_orb_files)==len(atom_names))
+        assert(len(fp_params["orb_files"])==len(atom_names))
         for iatom in range(len(atom_names)):
-            ret += fp_orb_files[iatom] +"\n"
+            ret += fp_params["orb_files"][iatom] +"\n"
     if "deepks_scf" in fp_params and fp_params["deepks_out_labels"]==1:
         ret +="\nNUMERICAL_DESCRIPTOR\n"
         ret +=fp_params["proj_file"][0]+"\n"
