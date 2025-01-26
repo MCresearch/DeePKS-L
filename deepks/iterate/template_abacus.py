@@ -54,8 +54,8 @@ DEFAULT_SCF_ARGS_ABACUS={
     "scf_nmax": 50,
     "dft_functional": "pbe", 
     "basis_type": "lcao",
-    "gamma_only": 1,
-    "k_points": None,
+    "gamma_only": 0,
+    "k_points": [1, 1, 1, 0, 0, 0],
     "kspacing": None,
     "smearing_method":"fixed",
     "smearing_sigma":0.001,
@@ -145,7 +145,7 @@ def make_scf_abacus(systems_train, systems_test=None, *,
 ### need parameters: orb_files, pp_files, proj_file
 def convert_data(systems_train, systems_test=None, *, 
                 no_model=True, model_file=None, pp_files=[], 
-                lattice_vector=np.eye(3, dtype=int), dispatcher=None,**pre_args):
+                dispatcher=None,**pre_args):
     #trace a model (if necessary)
     if not no_model:
         if model_file is not None:
@@ -199,11 +199,13 @@ def convert_data(systems_train, systems_test=None, *,
         #pre_args.update({"lattice_vector":lattice_vector})
         #if "stru_abacus.yaml" exists, update STRU args in pre_args:
         pre_args_new=dict(zip(pre_args.keys(),pre_args.values()))
-        if os.path.exists(f"{sys_paths[i]}/stru_abacus.yaml"):
+        if os.path.exists(f"{sys_paths[i]}/group_scf_abacus.yaml"):
             from deepks.utils import load_yaml
-            stru_abacus = load_yaml(f"{sys_paths[i]}/stru_abacus.yaml")
+            stru_abacus = load_yaml(f"{sys_paths[i]}/group_scf_abacus.yaml")
             for k,v in stru_abacus.items():
+                print(f"k={k},v={v}")
                 pre_args_new[k]=v
+        print(f"pre_args_new={pre_args_new}")
         for f in range(nframes):
             if not os.path.exists(f"{sys_paths[i]}/ABACUS/{f}"):
                 os.mkdir(f"{sys_paths[i]}/ABACUS/{f}")
@@ -215,7 +217,7 @@ def convert_data(systems_train, systems_test=None, *,
             #frame_sorted=frame_data[np.lexsort(frame_data[:,::-1].T)] #sort cord by type
             sys_data={'atom_names':[TYPE_NAME[it] for it in nta.keys()], 'atom_numbs': list(nta.values()), 
                         #'cells': np.array([lattice_vector]), 'coords': [frame_sorted[:,1:]]}
-                        'cells': np.array([lattice_vector]), 'coords': [frame_data[:,1:]]}
+                        'cells': np.array([pre_args_new["lattice_vector"]]), 'coords': [frame_data[:,1:]]}
             if os.path.isfile(f"{sys_paths[i]}/box.npy"):
                 sys_data={'atom_names':[TYPE_NAME[it] for it in nta.keys()], 'atom_numbs': list(nta.values()),
                         'cells': [cell_data[f]], 'coords': [frame_data[:,1:]]}
@@ -224,11 +226,10 @@ def convert_data(systems_train, systems_test=None, *,
                 stru_file.write(make_abacus_scf_stru(sys_data, pp_files, pre_args_new))
             #write INPUT file
             with open(f"{sys_paths[i]}/ABACUS/{f}/INPUT", "w") as input_file:
-                input_file.write(make_abacus_scf_input(pre_args))
-
+                input_file.write(make_abacus_scf_input(pre_args_new))
 
             #write KPT file if k_points is explicitly specified or for gamma_only case
-            if pre_args["k_points"] is not None or pre_args["gamma_only"] is True:
+            if pre_args_new["k_points"] is not None or pre_args_new["gamma_only"] is True:
                 with open(f"{sys_paths[i]}/ABACUS/{f}/KPT","w") as kpt_file:
                     kpt_file.write(make_abacus_scf_kpt(pre_args_new))
 
