@@ -199,9 +199,9 @@ def convert_data(systems_train, systems_test=None, *,
         #pre_args.update({"lattice_vector":lattice_vector})
         #if "stru_abacus.yaml" exists, update STRU args in pre_args:
         pre_args_new=dict(zip(pre_args.keys(),pre_args.values()))
-        if os.path.exists(f"{sys_paths[i]}/scf_abacus.yaml"):
+        if os.path.exists(f"{sys_paths[i]}/group_scf_abacus.yaml"):
             from deepks.utils import load_yaml
-            stru_abacus = load_yaml(f"{sys_paths[i]}/scf_abacus.yaml")
+            stru_abacus = load_yaml(f"{sys_paths[i]}/group_scf_abacus.yaml")
             for k,v in stru_abacus.items():
                 print(f"k={k},v={v}")
                 pre_args_new[k]=v
