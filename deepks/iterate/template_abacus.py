@@ -471,19 +471,19 @@ def gather_stats_abacus(systems_train, systems_test,
                     orbital_precalc=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy")
                     op_list.append(orbital_precalc)             
             if(deepks_v_delta):
-                hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/h_base.npy")
+                hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_hbase.npy")
                 h0_list.append(hcs/2)      
-                hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/h_tot.npy")
+                hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_htot.npy")
                 h_list.append(hcs/2)
                 if deepks_v_delta==1:
-                    if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/v_delta_precalc.npy"):
-                        v_delta_precalc=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/v_delta_precalc.npy")
+                    if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy"):
+                        v_delta_precalc=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy")
                         vdp_list.append(v_delta_precalc)
                 elif deepks_v_delta==2:
-                    if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/psialpha.npy") and os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/grad_evdm.npy"):
-                        psialpha=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/psialpha.npy")
+                    if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy") and os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy"):
+                        psialpha=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
                         psialpha_list.append(psialpha)
-                        gevdm=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/grad_evdm.npy")
+                        gevdm=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy")
                         gevdm_list.append(gevdm)          
         np.save(f"{train_dump}/{sys_train_names[i]}/conv.npy", c_list)
         dm_eig=np.array(d_list)   #concatenate
@@ -603,19 +603,19 @@ def gather_stats_abacus(systems_train, systems_test,
                     orbital_precalc=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy")
                     op_list.append(orbital_precalc)
             if(deepks_v_delta):
-                hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/h_base.npy")
+                hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_hbase.npy")
                 h0_list.append(hcs/2)      
-                hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/h_tot.npy")
+                hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_htot.npy")
                 h_list.append(hcs/2)
                 if deepks_v_delta==1:
-                    if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/v_delta_precalc.npy"):
-                        v_delta_precalc=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/v_delta_precalc.npy")
+                    if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy"):
+                        v_delta_precalc=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy")
                         vdp_list.append(v_delta_precalc)
                 elif deepks_v_delta==2:
-                    if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/psialpha.npy") and os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/grad_evdm.npy"):
-                        psialpha=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/psialpha.npy")
+                    if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy") and os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy"):
+                        psialpha=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
                         psialpha_list.append(psialpha)
-                        gevdm=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/grad_evdm.npy")
+                        gevdm=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy")
                         gevdm_list.append(gevdm)   
         dm_eig=np.array(d_list)   #concatenate
         np.save(f"{test_dump}/{sys_test_names[i]}/dm_eig.npy", dm_eig)
