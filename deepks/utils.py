@@ -2,7 +2,7 @@ import os
 import shutil
 from glob import glob
 from pathlib import Path
-import ruamel.yaml as yaml
+from ruamel.yaml import YAML
 import numpy as np
 from collections.abc import Mapping
 from itertools import chain
@@ -141,7 +141,8 @@ def deep_update(o, u=(), **f):
 
 def load_yaml(file_path):
     with open(file_path, 'r') as fp:
-        res = yaml.safe_load(fp)
+        yaml = YAML(typ='safe', pure=True)
+        res = yaml.load(fp)
     return res
 
 
@@ -150,7 +151,8 @@ def save_yaml(data, file_path):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     with open(file_path, 'w') as fp:
-        yaml.safe_dump(data, fp)
+        yaml = YAML(typ='safe', pure=True)
+        yaml.dump(data, fp)
 
 
 def load_array(file):
