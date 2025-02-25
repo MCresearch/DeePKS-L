@@ -64,7 +64,6 @@ DEFAULT_SCF_ARGS_ABACUS={
     "cal_force": 0,
     "cal_stress": 0,
     "deepks_bandgap": 0,
-    "deepks_band_range": [0, 0],
     "deepks_v_delta": 0,
     "deepks_out_labels":1,
     "deepks_scf":0,
