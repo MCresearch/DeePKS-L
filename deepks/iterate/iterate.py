@@ -90,6 +90,9 @@ def check_share_folder(data, name, share_folder="share"):
 
 
 def check_arg_dict(data, default, strict=True):
+    # check whether the key-value pairs in data are in default
+    # if strict is True, only keep the keys in default
+    # if strict is False, keep all keys in data
     if data is None:
         data = {}
     if isinstance(data, str):

@@ -123,10 +123,11 @@ class Reader(object):
         self.ndesc = self.nproj
 
     def prepare(self):
-        # load energy and check nframes
-        data_ec = np.load(self.e_path).reshape(-1, 1)
-        raw_nframes = data_ec.shape[0]
-        data_dm = np.load(self.d_path).reshape(raw_nframes, self.natm, self.ndesc)
+        ## Load energy and check nframes
+        data_ec = np.load(self.e_path).reshape(-1, 1) # energy
+        raw_nframes = data_ec.shape[0] # number of total frames
+        data_dm = np.load(self.d_path).reshape(raw_nframes, self.natm, self.ndesc) # descriptor
+        # Use convergent structure only
         if self.c_path is not None:
             conv = np.load(self.c_path).reshape(raw_nframes)
         else:
@@ -134,20 +135,24 @@ class Reader(object):
         self.data_ec = data_ec[conv]
         self.data_dm = data_dm[conv]
         self.nframes = conv.sum()
+        # reset batch size if nframes < batch_size
         if self.nframes < self.batch_size:
             self.batch_size = self.nframes
             print('#', self.data_path, 
                  f"reset batch size to {self.batch_size}", file=sys.stderr)
-        # handle atom and element data
+
+        ## Handle atom and element data
         self.atom_info = {}
         if self.a_path is not None:
-            atoms = np.load(self.a_path).reshape(raw_nframes, self.natm, 4)
+            atoms = np.load(self.a_path).reshape(raw_nframes, self.natm, 4) # atom.npy
             self.atom_info["elems"] = atoms[:, :, 0][conv].round().astype(int)
             self.atom_info["coords"] = atoms[:, :, 1:][conv]
+        # Energy and descriptor
         # load data in torch
         self.t_data = {}
         self.t_data["lb_e"] = torch.tensor(self.data_ec)
         self.t_data["eig"] = torch.tensor(self.data_dm)
+        # Force
         if self.f_path is not None and self.gvx_path is not None:
             self.t_data["lb_f"] = torch.tensor(
                 np.load(self.f_path)\
@@ -155,6 +160,7 @@ class Reader(object):
             self.t_data["gvx"] = torch.tensor(
                 np.load(self.gvx_path)\
                   .reshape(raw_nframes, self.natm, 3, self.natm, self.ndesc)[conv])
+        # Stress
         if self.s_path is not None and self.gvepsl_path is not None:
             self.t_data["lb_s"] = torch.tensor(
                 np.load(self.s_path)\
@@ -162,11 +168,13 @@ class Reader(object):
             self.t_data["gvepsl"] = torch.tensor(
                 np.load(self.gvepsl_path)\
                   .reshape(raw_nframes, 6, self.natm, self.ndesc)[conv])
+        # Orbital
         if self.o_path is not None and self.op_path is not None:
             self.t_data["lb_o"] = torch.tensor(
                 np.load(self.o_path)[conv])
             self.t_data["op"] = torch.tensor(
                 np.load(self.op_path)[conv])
+        # Hamiltonian
         if self.h_path is not None and (self.vdp_path is not None or (self.psialpha_path is not None and self.gevdm_path is not None)):
             h_shape = np.load(self.h_path).shape
             assert h_shape[-1] == h_shape[-2], \
@@ -176,7 +184,7 @@ class Reader(object):
                 np.load(self.h_path)\
                   .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]) #-1 for nks
             
-            #for v_delta_precalc
+            # for v_delta_precalc
             if self.vdp_path is not None and (self.psialpha_path is not None and self.gevdm_path is not None): #both file exist, choose newer ones
                 if os.path.getmtime(self.vdp_path) >= os.path.getmtime(self.psialpha_path):#psialpha and gevdm modified at the same time
                     self.psialpha_path=None
@@ -215,11 +223,12 @@ class Reader(object):
                         .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
                 band_ref,psi_ref=generalized_eigh(h_ref,L_inv)    
             else:
-                band_ref,psi_ref=torch.linalg.eigh(h_ref,UPLO='U')
+                band_ref,psi_ref=torch.linalg.eigh(h_ref,UPLO='U') # U for upper triangle
             self.t_data["lb_band"]=band_ref\
                   .reshape(raw_nframes, -1, self.nlocal)[conv].clone()             
             self.t_data["lb_psi"]=psi_ref\
                   .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()      
+        # Energy gradient
         if self.eg_path is not None and self.gveg_path is not None:
             self.t_data['eg0'] = torch.tensor(
                 np.load(self.eg_path)\
@@ -228,6 +237,7 @@ class Reader(object):
                 np.load(self.gveg_path)\
                   .reshape(raw_nframes, self.natm, self.ndesc, -1)[conv])
             self.neg = self.t_data['eg0'].shape[-1]
+        # Density
         if self.gldv_path is not None:
             self.t_data["gldv"] = torch.tensor(
                 np.load(self.gldv_path)\
@@ -296,7 +306,7 @@ class GroupReader(object) :
         # init system readers
         Reader_class = (Reader if extra_label 
             and isinstance(kwargs.get('d_name', "dm_eig"), str) 
-            else Reader)
+            else Reader) # Seems useless
         self.readers = []
         self.nframes = []
         for ipath in self.path_list :

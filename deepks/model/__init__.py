@@ -1,4 +1,6 @@
 __all__ = [
+    "utils",
+    "evaluator",
     "model",
     "reader",
     "train",

@@ -1,6 +1,6 @@
 #These 3 functions are copied from dpgen to generate ABACUS INPUT , KPT and STRU file.
 
-bohr2ang = 0.52917721067
+BOHR2ANG = 0.52917721067
 
 def make_abacus_scf_kpt(fp_params):
     # Make KPT file for abacus pw scf calculation.

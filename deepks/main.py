@@ -9,6 +9,10 @@ from deepks.utils import load_yaml, deep_update
 
 
 def main_cli(args=None):
+    '''
+        Main function for DeepKS running. Call subfunctions to realize.
+    '''
+    print("use modified deepks!")
     parser = argparse.ArgumentParser(
                 prog="deepks",
                 description="A program to generate accurate energy functionals.")
@@ -38,6 +42,9 @@ def main_cli(args=None):
 
 
 def train_cli(args=None):
+    '''
+        Function for train process. Read parameters from command line or input yaml file.
+    '''
     parser = argparse.ArgumentParser(
                 prog="deepks train",
                 description="Train a model according to given input.",
@@ -72,6 +79,9 @@ def train_cli(args=None):
 
 
 def test_cli(args=None):
+    '''
+        Function for test process. Read parameters from command line or input yaml file.
+    '''
     parser = argparse.ArgumentParser(
                 prog="deepks test",
                 description="Test a model with given data (Not SCF).",
@@ -97,7 +107,7 @@ def test_cli(args=None):
         del args.input
         argdict = {}
         if "ckpt_file" in rawdict["train_args"]:
-            argdict["model_file"] = rawdict["train_args"]["ckpt_file"]
+            argdict["model_file"] = rawdict["train_args"]["ckpt_file"] # Check-point of the model
         if "e_name" in rawdict["data_args"]:
             argdict["e_name"] = rawdict["data_args"]["e_name"]
         if "d_name" in rawdict["data_args"]:
@@ -113,6 +123,9 @@ def test_cli(args=None):
 
 
 def scf_cli(args=None):
+    '''
+        Function for calling scf procedure. Read parameters from command line or input yaml file.
+    '''
     parser = argparse.ArgumentParser(
                 prog="deepks scf",
                 description="Calculate and save SCF results using given model.",
@@ -156,6 +169,7 @@ def scf_cli(args=None):
     args = parser.parse_args(args)
 
     scf_args={}
+    # Combine parameters start with scf prefix
     for k, v in vars(args).copy().items():
         if k.startswith("scf_"):
             scf_args[k[4:]] = v
@@ -175,6 +189,9 @@ def scf_cli(args=None):
 
 
 def stats_cli(args=None):
+    '''
+        Function for getting scf results. Read parameters from command line or input yaml file.
+    '''
     parser = argparse.ArgumentParser(
                 prog="deepks stats",
                 description="Print the stats of SCF results.",
@@ -218,6 +235,9 @@ def stats_cli(args=None):
 
 
 def iter_cli(args=None):
+    '''
+        Function for doing iterations. Read parameters from command line or input yaml file.
+    '''
     parser = argparse.ArgumentParser(
                 prog="deepks iterate",
                 description="Run the iteration procedure to train a SCF model.",
