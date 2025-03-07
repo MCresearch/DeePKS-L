@@ -189,8 +189,8 @@ def convert_data(systems_train, systems_test=None, *,
         natoms = atom_data.shape[1]
         atoms = atom_data[0,:,0] # if use atom_data[1,:,0], will need at least two frames
         #atoms.sort() # type order
-        types = np.unique(atoms) #index in type list
-        ntype = types.size
+        types = np.unique(atoms) #index in type list # not used, should be deleted
+        ntype = types.size # not used, should be deleted
         from collections import Counter
         nta = Counter(atoms) #dict {itype: nta}, natom in each type
         if not os.path.exists(f"{sys_paths[i]}/ABACUS"):
@@ -395,6 +395,9 @@ def make_run_scf_abacus(systems_train, systems_test=None,
 
 def gather_stats_abacus(systems_train, systems_test, 
                 train_dump, test_dump, cal_force=0, cal_stress=0, deepks_bandgap=0, deepks_v_delta=0, **stat_args):
+    """
+    Gather statistics for training and testing data from ABACUS calculations. 
+    """
     sys_train_paths = [os.path.abspath(s) for s in load_sys_paths(systems_train)]
     sys_test_paths = [os.path.abspath(s) for s in load_sys_paths(systems_test)]
     sys_train_paths = [get_sys_name(s) for s in sys_train_paths]
@@ -405,7 +408,8 @@ def gather_stats_abacus(systems_train, systems_test,
         train_dump = "."
     if test_dump is None:
         test_dump = "."
-    #concatenate data (train)
+
+    # concatenate data (train)
     if not os.path.exists(train_dump):
         os.mkdir(train_dump)
     for i in range(len(systems_train)):
@@ -416,35 +420,50 @@ def gather_stats_abacus(systems_train, systems_test,
         except FileNotFoundError:
             atom_data = coord_to_atom(sys_train_paths[i])
         nframes = atom_data.shape[0]
-        c_list=np.full((nframes,1), False)
-        d_list=[]
+
+        ## Initialize of properties list
+        c_list=np.full((nframes,1), False) # convergence of each frame
+        d_list=[] # eigenvalues of density matrix (dm_eig)
+
+        # properties for base model
         e0_list=[]
         f0_list=[]
         s0_list=[]
         o0_list=[]
         h0_list=[]
+
+        # properties for total model
         e_list=[]
         f_list=[]
         s_list=[]
         o_list=[]
         h_list=[]
-        op_list=[]
-        vdp_list=[] #v_delta_precalc
-        psialpha_list=[]
+
+        # properties for deepks calculation
+        op_list=[] # orbital_precalc
+        vdp_list=[] # v_delta_precalc
+        psialpha_list=[] 
         gevdm_list=[]
         gvx_list=[]
         gvepsl_list=[]
+
+        ## Main loop over frames in training data
         for f in range(nframes):
+            # Check convergence of each frame
             with open(f"{sys_train_paths[i]}/ABACUS/{f}/conv","r") as conv_file:
                 ic=conv_file.read().split()
                 if "achieved" in ic and "not" not in ic:
                     c_list[(int)(ic[0])]=True
+
+            # Energy and eigenvalues of density matrix
             des = np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_dm_eig.npy")
             d_list.append(des)
             ene = np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_ebase.npy")
             e0_list.append(ene/2)    #Ry to Hartree
             ene = np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_etot.npy")
             e_list.append(ene/2)
+
+            # Forces 
             if(cal_force):
                 fcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_fbase.npy")
                 f0_list.append(fcs/2)    #Ry to Hartree
@@ -453,6 +472,8 @@ def gather_stats_abacus(systems_train, systems_test,
                 if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy"):
                     gvx=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy")
                     gvx_list.append(gvx)
+
+            # Stress
             if(cal_stress):
                 scs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_sbase.npy")
                 s0_list.append(scs/2)    #Ry to Hartree
@@ -461,6 +482,8 @@ def gather_stats_abacus(systems_train, systems_test,
                 if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy"):
                     gvepsl=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy")
                     gvepsl_list.append(gvepsl)
+
+            # Bandgap (orbital)
             if(deepks_bandgap):
                 ocs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_obase.npy")
                 o0_list.append(ocs/2)      
@@ -468,7 +491,9 @@ def gather_stats_abacus(systems_train, systems_test,
                 o_list.append(ocs/2)
                 if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy"):
                     orbital_precalc=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy")
-                    op_list.append(orbital_precalc)             
+                    op_list.append(orbital_precalc)    
+
+            # V_delta (Hamiltonian) 
             if(deepks_v_delta):
                 hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_hbase.npy")
                 h0_list.append(hcs/2)      
@@ -483,8 +508,13 @@ def gather_stats_abacus(systems_train, systems_test,
                         psialpha=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
                         psialpha_list.append(psialpha)
                         gevdm=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy")
-                        gevdm_list.append(gevdm)          
+                        gevdm_list.append(gevdm)
+        
+        ## Save data    
+        # Convergence      
         np.save(f"{train_dump}/{sys_train_names[i]}/conv.npy", c_list)
+
+        # Energy and eigenvalues of density matrix
         dm_eig=np.array(d_list)   #concatenate
         np.save(f"{train_dump}/{sys_train_names[i]}/dm_eig.npy", dm_eig)
         e_base=np.array(e0_list)
@@ -494,6 +524,8 @@ def gather_stats_abacus(systems_train, systems_test,
         np.save(f"{train_dump}/{sys_train_names[i]}/atom.npy", atom_data)
         np.save(f"{train_dump}/{sys_train_names[i]}/l_e_delta.npy", e_ref-e_base)
         np.save(f"{train_dump}/{sys_train_names[i]}/e_tot.npy", np.array(e_list))
+
+        # Forces
         if(cal_force): 
             f_base=np.array(f0_list)
             np.save(f"{train_dump}/{sys_train_names[i]}/f_base.npy", f_base)
@@ -503,6 +535,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{train_dump}/{sys_train_names[i]}/f_tot.npy", np.array(f_list))
             if len(gvx_list) > 0:
                 np.save(f"{train_dump}/{sys_train_names[i]}/grad_vx.npy", np.array(gvx_list))
+
+        # Stress
         if(cal_stress): 
             s_base=np.array(s0_list)
             np.save(f"{train_dump}/{sys_train_names[i]}/s_base.npy", s_base)
@@ -513,6 +547,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{train_dump}/{sys_train_names[i]}/s_tot.npy", np.array(s_list))
             if len(gvepsl_list) > 0:
                 np.save(f"{train_dump}/{sys_train_names[i]}/grad_vepsl.npy", np.array(gvepsl_list))
+
+        # Bandgap (orbital)
         if(deepks_bandgap): 
             o_base=np.array(o0_list)
             np.save(f"{train_dump}/{sys_train_names[i]}/o_base.npy", o_base)
@@ -522,6 +558,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{train_dump}/{sys_train_names[i]}/o_tot.npy", np.array(o_list))
             if len(op_list) > 0:
                 np.save(f"{train_dump}/{sys_train_names[i]}/orbital_precalc.npy", np.array(op_list))
+
+        # V_delta (Hamiltonian)
         if(deepks_v_delta): 
             h_base=np.array(h0_list)
             np.save(f"{train_dump}/{sys_train_names[i]}/h_base.npy", h_base)
@@ -537,9 +575,11 @@ def gather_stats_abacus(systems_train, systems_test,
             if os.path.exists(f"{sys_train_paths[i]}/overlap.npy"):
                 overlap=np.load(f"{sys_train_paths[i]}/overlap.npy")
                 np.save(f"{train_dump}/{sys_train_names[i]}/overlap.npy", overlap)
-    #concatenate data (test)
+
+
+    # concatenate data (test)
     if not os.path.exists(test_dump):
-            os.mkdir(test_dump)
+        os.mkdir(test_dump)
     for i in range(len(systems_test)):
         if not os.path.exists(test_dump + '/' + sys_test_names[i]):
             os.mkdir(test_dump + '/' + sys_test_names[i])
@@ -548,35 +588,50 @@ def gather_stats_abacus(systems_train, systems_test,
         except FileNotFoundError:
             atom_data = coord_to_atom(sys_test_paths[i])
         nframes = atom_data.shape[0]
-        c_list=np.full((nframes,1), False)
-        d_list=[]
+
+        ## Initialize of properties list
+        c_list=np.full((nframes,1), False) # convergence of each frame
+        d_list=[] # eigenvalues of density matrix (dm_eig)
+
+        # properties for base model
         e0_list=[]
         f0_list=[]
         s0_list=[]
         o0_list=[]
         h0_list=[]
+
+        # properties for total model
         e_list=[]
         f_list=[]
         s_list=[]
         o_list=[]
         h_list=[]
-        op_list=[]
-        vdp_list=[] #v_delta_precalc
-        psialpha_list=[]
+
+        # properties for deepks calculation
+        op_list=[] # orbital_precalc
+        vdp_list=[] # v_delta_precalc
+        psialpha_list=[] 
         gevdm_list=[]        
         gvx_list=[]
         gvepsl_list=[]
+
+        ## Main loop over frames in testing data
         for f in range(nframes):
+            # Check convergence of each frame
             with open(f"{sys_test_paths[i]}/ABACUS/{f}/conv","r") as conv_file:
                 ic=conv_file.read().split()
                 if "achieved" in ic and "not" not in ic:
                     c_list[(int)(ic[0])]=True
+
+            # Energy and eigenvalues of density matrix
             des = np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_dm_eig.npy")
             d_list.append(des)
             ene = np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_ebase.npy")
             e0_list.append(ene/2)    #Ry to Hartree
             ene = np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_etot.npy")
             e_list.append(ene/2)
+
+            # Forces
             if(cal_force):
                 fcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_fbase.npy")
                 f0_list.append(fcs/2)    #Ry to Hartree
@@ -585,6 +640,8 @@ def gather_stats_abacus(systems_train, systems_test,
                 if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy"):
                     gvx=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy")
                     gvx_list.append(gvx)
+
+            # Stress
             if(cal_stress):
                 scs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_sbase.npy")
                 s0_list.append(scs/2)    #Ry to Hartree
@@ -593,6 +650,8 @@ def gather_stats_abacus(systems_train, systems_test,
                 if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy"):
                     gvepsl=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy")
                     gvepsl_list.append(gvepsl)
+
+            # Bandgap (orbital)
             if(deepks_bandgap):
                 ocs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_obase.npy")
                 o0_list.append(ocs/2)      
@@ -601,6 +660,8 @@ def gather_stats_abacus(systems_train, systems_test,
                 if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy"):
                     orbital_precalc=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy")
                     op_list.append(orbital_precalc)
+
+            # V_delta (Hamiltonian)
             if(deepks_v_delta):
                 hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_hbase.npy")
                 h0_list.append(hcs/2)      
@@ -616,6 +677,12 @@ def gather_stats_abacus(systems_train, systems_test,
                         psialpha_list.append(psialpha)
                         gevdm=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy")
                         gevdm_list.append(gevdm)   
+
+        ## Save data
+        # Convergence
+        np.save(f"{test_dump}/{sys_test_names[i]}/conv.npy",c_list)
+
+        # Energy and eigenvalues of density matrix
         dm_eig=np.array(d_list)   #concatenate
         np.save(f"{test_dump}/{sys_test_names[i]}/dm_eig.npy", dm_eig)
         e_base=np.array(e0_list)
@@ -625,6 +692,8 @@ def gather_stats_abacus(systems_train, systems_test,
         np.save(f"{test_dump}/{sys_test_names[i]}/atom.npy", atom_data)
         np.save(f"{test_dump}/{sys_test_names[i]}/l_e_delta.npy", e_ref-e_base)
         np.save(f"{test_dump}/{sys_test_names[i]}/e_tot.npy", np.array(e_list))
+
+        # Forces
         if(cal_force): 
             f_base=np.array(f0_list)
             np.save(f"{test_dump}/{sys_test_names[i]}/f_base.npy", f_base)
@@ -634,6 +703,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{test_dump}/{sys_test_names[i]}/f_tot.npy", np.array(f_list))
             if len(gvx_list)>0:
                 np.save(f"{test_dump}/{sys_test_names[i]}/grad_vx.npy", np.array(gvx_list))
+        
+        # Stress
         if(cal_stress): 
             s_base=np.array(s0_list)
             np.save(f"{test_dump}/{sys_test_names[i]}/s_base.npy", s_base)
@@ -644,6 +715,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{test_dump}/{sys_test_names[i]}/s_tot.npy", np.array(s_list))
             if len(gvepsl_list)>0:
                 np.save(f"{test_dump}/{sys_test_names[i]}/grad_vepsl.npy", np.array(gvepsl_list))
+        
+        # Bandgap (orbital)
         if(deepks_bandgap): 
             o_base=np.array(o0_list)
             np.save(f"{test_dump}/{sys_test_names[i]}/o_base.npy", o_base)
@@ -653,6 +726,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{test_dump}/{sys_test_names[i]}/o_tot.npy", np.array(o_list))
             if len(op_list) > 0:
                 np.save(f"{test_dump}/{sys_test_names[i]}/orbital_precalc.npy", np.array(op_list))
+        
+        # V_delta (Hamiltonian)
         if(deepks_v_delta): 
             h_base=np.array(h0_list)
             np.save(f"{test_dump}/{sys_test_names[i]}/h_base.npy", h_base)
@@ -668,8 +743,8 @@ def gather_stats_abacus(systems_train, systems_test,
             if os.path.exists(f"{sys_test_paths[i]}/overlap.npy"):
                 overlap=np.load(f"{sys_test_paths[i]}/overlap.npy")
                 np.save(f"{test_dump}/{sys_test_names[i]}/overlap.npy", overlap)
-        np.save(f"{test_dump}/{sys_test_names[i]}/conv.npy",c_list)
-    #check convergence and print in log
+        
+    # check convergence and print in log
     from deepks.scf.stats import print_stats
     print_stats(systems=systems_train, test_sys=systems_test,
             dump_dir=train_dump, test_dump=test_dump, group=False, 
