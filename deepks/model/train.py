@@ -24,7 +24,7 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
           energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., psi_factor=0.,psi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
           energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, psi_loss=None, band_loss=None, density_m_loss=None, grad_penalty=0.,
           energy_per_atom=0, vd_divide_by_nlocal=False,
-          start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None,
+          start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None, decay_rate_iter=None,
           weight_decay=0.,  fix_embedding=False,
           display_epoch=100, display_detail_test=0, display_natom_loss=False, ckpt_file="model.pth",
           graph_file=None, device=DEVICE):
@@ -38,6 +38,14 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     if fix_embedding and model.embedder is not None:
         model.embedder.requires_grad_(False)
     # set up optimizer and lr scheduler
+    if "decay_rate_iter" is not None:
+        # decay_rate of start_lr for iterations, often start from iter.00
+        current_dir=os.getcwd()
+        current_iter=current_dir.split("/")[-2].split(".")[-1]
+        if current_iter != "init": # no need to change
+            current_iter=int(current_iter)
+            start_lr=start_lr*(decay_rate_iter**current_iter)
+            print(f"# resetting start_lr to {start_lr:.2e} because of decay_rate_iter")
     optimizer = optim.Adam(model.parameters(), lr=start_lr, weight_decay=weight_decay)
     if stop_lr is not None:
         decay_rate = (stop_lr / start_lr) ** (1 / (n_epoch // decay_steps))
