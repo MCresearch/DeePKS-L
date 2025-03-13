@@ -440,7 +440,7 @@ def gather_stats_abacus(systems_train, systems_test,
         # properties for deepks calculation
         op_list=[] # orbital_precalc
         vdp_list=[] # v_delta_precalc
-        psialpha_list=[] 
+        phialpha_list=[] 
         gevdm_list=[]
         gvx_list=[]
         gvepsl_list=[]
@@ -503,8 +503,8 @@ def gather_stats_abacus(systems_train, systems_test,
                         vdp_list.append(v_delta_precalc)
                 elif deepks_v_delta==2:
                     if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy") and os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy"):
-                        psialpha=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
-                        psialpha_list.append(psialpha)
+                        phialpha=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
+                        phialpha_list.append(phialpha)
                         gevdm=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy")
                         gevdm_list.append(gevdm)
         
@@ -567,8 +567,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{train_dump}/{sys_train_names[i]}/h_tot.npy", np.array(h_list))
             if len(vdp_list) > 0:
                 np.save(f"{train_dump}/{sys_train_names[i]}/v_delta_precalc.npy", np.array(vdp_list))
-            elif len(psialpha_list) > 0 and len(gevdm_list) > 0:
-                np.save(f"{train_dump}/{sys_train_names[i]}/psialpha.npy", np.array(psialpha_list))
+            elif len(phialpha_list) > 0 and len(gevdm_list) > 0:
+                np.save(f"{train_dump}/{sys_train_names[i]}/phialpha.npy", np.array(phialpha_list))
                 np.save(f"{train_dump}/{sys_train_names[i]}/grad_evdm.npy", np.array(gevdm_list))
             if os.path.exists(f"{sys_train_paths[i]}/overlap.npy"):
                 overlap=np.load(f"{sys_train_paths[i]}/overlap.npy")
@@ -608,7 +608,7 @@ def gather_stats_abacus(systems_train, systems_test,
         # properties for deepks calculation
         op_list=[] # orbital_precalc
         vdp_list=[] # v_delta_precalc
-        psialpha_list=[] 
+        phialpha_list=[] 
         gevdm_list=[]        
         gvx_list=[]
         gvepsl_list=[]
@@ -671,8 +671,8 @@ def gather_stats_abacus(systems_train, systems_test,
                         vdp_list.append(v_delta_precalc)
                 elif deepks_v_delta==2:
                     if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy") and os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy"):
-                        psialpha=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
-                        psialpha_list.append(psialpha)
+                        phialpha=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_phialpha.npy")
+                        phialpha_list.append(phialpha)
                         gevdm=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gevdm.npy")
                         gevdm_list.append(gevdm)   
 
@@ -735,8 +735,8 @@ def gather_stats_abacus(systems_train, systems_test,
             np.save(f"{test_dump}/{sys_test_names[i]}/h_tot.npy", np.array(h_list))
             if len(vdp_list) > 0:
                 np.save(f"{test_dump}/{sys_test_names[i]}/v_delta_precalc.npy", np.array(vdp_list))
-            elif len(psialpha_list) > 0 and len(gevdm_list) > 0:
-                np.save(f"{test_dump}/{sys_test_names[i]}/psialpha.npy", np.array(psialpha_list))
+            elif len(phialpha_list) > 0 and len(gevdm_list) > 0:
+                np.save(f"{test_dump}/{sys_test_names[i]}/phialpha.npy", np.array(phialpha_list))
                 np.save(f"{test_dump}/{sys_test_names[i]}/grad_evdm.npy", np.array(gevdm_list))
             if os.path.exists(f"{sys_test_paths[i]}/overlap.npy"):
                 overlap=np.load(f"{sys_test_paths[i]}/overlap.npy")

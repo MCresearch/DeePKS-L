@@ -42,7 +42,7 @@ NPY_DICT = {
             "h_base": (2,None),
             "h_tot": (2,None),
             "v_delta_precalc": (1,1),
-            "psialpha": (1,2),
+            "phialpha": (1,2),
             "grad_evdm": (1,2),
         },
     },
@@ -54,7 +54,7 @@ NPY_DICT = {
         "force": ["f_base", "f_tot", "l_f_delta", "grad_vx"],
         "stress": ["s_base", "s_tot", "l_s_delta", "grad_vepsl"],
         "orbital": ["o_base", "o_tot", "l_o_delta", "orbital_precalc"],
-        "hamiltonian": ["h_base", "h_tot", "l_h_delta", "v_delta_precalc", "psialpha", "grad_evdm"],
+        "hamiltonian": ["h_base", "h_tot", "l_h_delta", "v_delta_precalc", "phialpha", "grad_evdm"],
         "overlap": [],
     }
 }

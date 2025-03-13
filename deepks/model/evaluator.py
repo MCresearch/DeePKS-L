@@ -8,20 +8,20 @@ try:
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 from deepks.model.reader import generalized_eigh
-from deepks.model.utils import get_density_matrix, cal_psi_loss, cal_v_delta, get_occ_func, make_loss
+from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss
 
 class Evaluator:
     def __init__(self,
                  energy_factor=1., force_factor=0., 
                  stress_factor=0., orbital_factor=0.,
                  v_delta_factor=0., 
-                 psi_factor=0., psi_occ=0,
+                 phi_factor=0., phi_occ=0,
                  band_factor=0.,band_occ=0,
                  density_m_factor=0.,density_m_occ=0,
                  density_factor=0., grad_penalty=0., 
                  energy_lossfn=None, force_lossfn=None, 
                  stress_lossfn=None, orbital_lossfn=None,
-                 v_delta_lossfn=None, psi_lossfn=None,
+                 v_delta_lossfn=None, phi_lossfn=None,
                  band_lossfn=None, density_m_lossfn=None,
                  energy_per_atom=0,vd_divide_by_nlocal=False):
         # energy term
@@ -60,14 +60,14 @@ class Evaluator:
         self.vd_factor = v_delta_factor
         self.vd_lossfn = v_delta_lossfn
         self.vd_divide_by_nlocal = vd_divide_by_nlocal
-        # psi term
-        if psi_lossfn is None:
-            psi_lossfn = {}
-        if isinstance(psi_lossfn, dict):
-            psi_lossfn = make_loss(**psi_lossfn)
-        self.psi_factor = psi_factor
-        self.psi_lossfn = psi_lossfn   
-        self.get_psi_occ = get_occ_func(psi_occ)
+        # phi term
+        if phi_lossfn is None:
+            phi_lossfn = {}
+        if isinstance(phi_lossfn, dict):
+            phi_lossfn = make_loss(**phi_lossfn)
+        self.phi_factor = phi_factor
+        self.phi_lossfn = phi_lossfn   
+        self.get_phi_occ = get_occ_func(phi_occ)
         #band energy term
         if band_lossfn is None:
             band_lossfn = {}
@@ -104,7 +104,7 @@ class Evaluator:
                         or (self.s_factor > 0 and "lb_s" in sample) 
                         or (self.o_factor > 0 and "lb_o" in sample)
                         or (self.vd_factor > 0 and "lb_vd" in sample)
-                        or (self.psi_factor > 0 and "lb_psi" in sample)
+                        or (self.phi_factor > 0 and "lb_phi" in sample)
                         or (self.band_factor > 0 and "lb_band" in sample)
                         or (self.density_m_factor > 0)
                         or (self.d_factor > 0 and "gldv" in sample)
@@ -146,15 +146,15 @@ class Evaluator:
                 # print(o_label.shape, op.shape, o_pred.shape, gev.shape)
                 tot_loss = tot_loss + self.o_factor * self.o_lossfn(o_pred, o_label)
                 loss.append(self.o_factor * self.o_lossfn(o_pred, o_label))
-            if (self.vd_factor > 0 and "lb_vd" in sample) or (self.psi_factor > 0 and "lb_psi" in sample) \
-                or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_psi" in sample):
+            if (self.vd_factor > 0 and "lb_vd" in sample) or (self.phi_factor > 0 and "lb_phi" in sample) \
+                or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
                 # cal v_delta
                 if "vdp" in sample:
                     vdp = sample["vdp"]
                     vd_pred = torch.einsum("...kxyap,...ap->...kxy", vdp, gev)
-                elif "psialpha" in sample and "gevdm" in sample:                  
+                elif "phialpha" in sample and "gevdm" in sample:                  
                     # start=time()
-                    vd_pred = cal_v_delta(gev,sample["gevdm"],sample["psialpha"])
+                    vd_pred = cal_v_delta(gev,sample["gevdm"],sample["phialpha"])
                     # end=time()
                     # print("cal vdp time in batch:",end-start)
                 nlocal = vd_pred.shape[-1]
@@ -169,19 +169,19 @@ class Evaluator:
                     tot_loss = tot_loss + vd_loss
                     loss.append(vd_loss)
                 
-                if (self.psi_factor > 0 and "lb_psi" in sample) or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_psi" in sample):
+                if (self.phi_factor > 0 and "lb_phi" in sample) or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
                     h_base = sample["h_base"]
                     if "L_inv" in sample:
                         L_inv=sample["L_inv"]
-                        band_pred,psi_pred=generalized_eigh(h_base+vd_pred,L_inv)
+                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,L_inv)
                     else:
-                        band_pred,psi_pred= torch.linalg.eigh(h_base+vd_pred,UPLO='U')
-                    # optional psi calculation
-                    if self.psi_factor > 0 and "lb_psi" in sample:
-                        psi_label = sample["lb_psi"]
-                        psi_loss = self.psi_factor * cal_psi_loss(psi_pred,psi_label,self.get_psi_occ(natom))
-                        tot_loss = tot_loss + psi_loss
-                        loss.append(psi_loss)
+                        band_pred,phi_pred= torch.linalg.eigh(h_base+vd_pred,UPLO='U')
+                    # optional phi calculation
+                    if self.phi_factor > 0 and "lb_phi" in sample:
+                        phi_label = sample["lb_phi"]
+                        phi_loss = self.phi_factor * cal_phi_loss(phi_pred,phi_label,self.get_phi_occ(natom))
+                        tot_loss = tot_loss + phi_loss
+                        loss.append(phi_loss)
                     # optional band energy calculation
                     if self.band_factor > 0 and "lb_band" in sample:
                         band_label = sample["lb_band"]
@@ -191,12 +191,12 @@ class Evaluator:
                         # print("occ_band",band_pred[...,:band_occ],band_label[...,:band_occ])
                         loss.append(band_loss)
                     # optional density matrix calculation
-                    if self.density_m_factor > 0 and "lb_psi" in sample:
+                    if self.density_m_factor > 0 and "lb_phi" in sample:
                         # calculate density_m_label every time, kind of waste of time
-                        psi_label = sample["lb_psi"]
+                        phi_label = sample["lb_phi"]
                         density_m_occ=self.get_density_m_occ(natom)
-                        density_m_label = get_density_matrix(psi_label,density_m_occ)
-                        density_m_pred = get_density_matrix(psi_pred,density_m_occ)
+                        density_m_label = get_density_matrix(phi_label,density_m_occ)
+                        density_m_pred = get_density_matrix(phi_pred,density_m_occ)
                         #need to multiply nlocal, reason is the same as v_delta
                         density_m_loss = self.density_m_factor * self.density_m_lossfn(density_m_pred, density_m_label) * nlocal
                         tot_loss = tot_loss + density_m_loss
@@ -226,14 +226,14 @@ class Evaluator:
         # optional v_delta calculation
         if self.vd_factor > 0 and "lb_vd" in data_keys:
             info+=f"{name}_v_delta".rjust(len)
-        # optional psi calculation
-        if self.psi_factor > 0 and "lb_psi" in data_keys:
-            info+=f"{name}_psi".rjust(len)
+        # optional phi calculation
+        if self.phi_factor > 0 and "lb_phi" in data_keys:
+            info+=f"{name}_phi".rjust(len)
         # optional band energy calculation
         if self.band_factor > 0 and "lb_band" in data_keys:
             info+=f"{name}_band".rjust(len)
         # optional density matrix calculation
-        if self.density_m_factor > 0 and "lb_psi" in data_keys:
+        if self.density_m_factor > 0 and "lb_phi" in data_keys:
             info+=f"{name}_dm".rjust(len)             
         # density loss with fix head grad
         if self.d_factor > 0 and "gldv" in data_keys:
