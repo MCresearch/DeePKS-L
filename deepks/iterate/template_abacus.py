@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from glob import glob
+from collections import Counter
 from deepks.utils import flat_file_list, load_dirs
 from deepks.utils import get_sys_name, load_sys_paths
 from deepks.task.task import PythonTask
@@ -186,13 +187,6 @@ def convert_data(systems_train, systems_test=None, *,
         if os.path.isfile(f"{sys_paths[i]}/box.npy"):
             cell_data = np.load(f"{sys_paths[i]}/box.npy")
         nframes = atom_data.shape[0]
-        natoms = atom_data.shape[1]
-        atoms = atom_data[0,:,0] # if use atom_data[1,:,0], will need at least two frames
-        #atoms.sort() # type order
-        types = np.unique(atoms) #index in type list # not used, should be deleted
-        ntype = types.size # not used, should be deleted
-        from collections import Counter
-        nta = Counter(atoms) #dict {itype: nta}, natom in each type
         if not os.path.exists(f"{sys_paths[i]}/ABACUS"):
             os.mkdir(f"{sys_paths[i]}/ABACUS")
         #pre_args.update({"lattice_vector":lattice_vector})
@@ -214,6 +208,10 @@ def convert_data(systems_train, systems_test=None, *,
             #create sys_data for each frame
             frame_data=atom_data[f]
             #frame_sorted=frame_data[np.lexsort(frame_data[:,::-1].T)] #sort cord by type
+            # nta may diff for different frames
+            atoms = atom_data[f,:,0] 
+            #atoms.sort() # type order
+            nta = Counter(atoms) #dict {itype: nta}, natom in each type
             sys_data={'atom_names':[TYPE_NAME[it] for it in nta.keys()], 'atom_numbs': list(nta.values()), 
                         #'cells': np.array([lattice_vector]), 'coords': [frame_sorted[:,1:]]}
                         'cells': np.array([pre_args_new["lattice_vector"]]), 'coords': [frame_data[:,1:]]}
