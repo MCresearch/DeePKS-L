@@ -38,7 +38,7 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     if fix_embedding and model.embedder is not None:
         model.embedder.requires_grad_(False)
     # set up optimizer and lr scheduler
-    if "decay_rate_iter" is not None:
+    if decay_rate_iter is not None:
         # decay_rate of start_lr for iterations, often start from iter.00
         current_dir=os.getcwd()
         current_iter=current_dir.split("/")[-2].split(".")[-1]
