@@ -457,16 +457,16 @@ def gather_stats_abacus(systems_train, systems_test,
             des = np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_dm_eig.npy")
             d_list.append(des)
             ene = np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_ebase.npy")
-            e0_list.append(ene/2)    #Ry to Hartree
+            e0_list.append(ene)
             ene = np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_etot.npy")
-            e_list.append(ene/2)
+            e_list.append(ene)
 
             # Forces 
             if(cal_force):
                 fcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_fbase.npy")
-                f0_list.append(fcs/2)    #Ry to Hartree
+                f0_list.append(fcs)
                 fcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_ftot.npy")
-                f_list.append(fcs/2)
+                f_list.append(fcs)
                 if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy"):
                     gvx=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy")
                     gvx_list.append(gvx)
@@ -474,9 +474,9 @@ def gather_stats_abacus(systems_train, systems_test,
             # Stress
             if(cal_stress):
                 scs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_sbase.npy")
-                s0_list.append(scs/2)    #Ry to Hartree
+                s0_list.append(scs)
                 scs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_stot.npy")
-                s_list.append(scs/2)
+                s_list.append(scs)
                 if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy"):
                     gvepsl=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy")
                     gvepsl_list.append(gvepsl)
@@ -484,9 +484,9 @@ def gather_stats_abacus(systems_train, systems_test,
             # Bandgap (orbital)
             if(deepks_bandgap):
                 ocs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_obase.npy")
-                o0_list.append(ocs/2)      
+                o0_list.append(ocs)      
                 ocs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_otot.npy")
-                o_list.append(ocs/2)
+                o_list.append(ocs)
                 if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy"):
                     orbital_precalc=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy")
                     op_list.append(orbital_precalc)    
@@ -494,9 +494,9 @@ def gather_stats_abacus(systems_train, systems_test,
             # V_delta (Hamiltonian) 
             if(deepks_v_delta):
                 hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_hbase.npy")
-                h0_list.append(hcs/2)      
+                h0_list.append(hcs)      
                 hcs=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_htot.npy")
-                h_list.append(hcs/2)
+                h_list.append(hcs)
                 if deepks_v_delta==1:
                     if os.path.exists(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy"):
                         v_delta_precalc=np.load(f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy")
@@ -625,16 +625,16 @@ def gather_stats_abacus(systems_train, systems_test,
             des = np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_dm_eig.npy")
             d_list.append(des)
             ene = np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_ebase.npy")
-            e0_list.append(ene/2)    #Ry to Hartree
+            e0_list.append(ene)
             ene = np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_etot.npy")
-            e_list.append(ene/2)
+            e_list.append(ene)
 
             # Forces
             if(cal_force):
                 fcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_fbase.npy")
-                f0_list.append(fcs/2)    #Ry to Hartree
+                f0_list.append(fcs)
                 fcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_ftot.npy")
-                f_list.append(fcs/2)
+                f_list.append(fcs)
                 if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy"):
                     gvx=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gradvx.npy")
                     gvx_list.append(gvx)
@@ -642,9 +642,9 @@ def gather_stats_abacus(systems_train, systems_test,
             # Stress
             if(cal_stress):
                 scs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_sbase.npy")
-                s0_list.append(scs/2)    #Ry to Hartree
+                s0_list.append(scs)
                 scs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_stot.npy")
-                s_list.append(scs/2)
+                s_list.append(scs)
                 if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy"):
                     gvepsl=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_gvepsl.npy")
                     gvepsl_list.append(gvepsl)
@@ -652,9 +652,9 @@ def gather_stats_abacus(systems_train, systems_test,
             # Bandgap (orbital)
             if(deepks_bandgap):
                 ocs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_obase.npy")
-                o0_list.append(ocs/2)      
+                o0_list.append(ocs)      
                 ocs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_otot.npy")
-                o_list.append(ocs/2)
+                o_list.append(ocs)
                 if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy"):
                     orbital_precalc=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_orbpre.npy")
                     op_list.append(orbital_precalc)
@@ -662,9 +662,9 @@ def gather_stats_abacus(systems_train, systems_test,
             # V_delta (Hamiltonian)
             if(deepks_v_delta):
                 hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_hbase.npy")
-                h0_list.append(hcs/2)      
+                h0_list.append(hcs)      
                 hcs=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_htot.npy")
-                h_list.append(hcs/2)
+                h_list.append(hcs)
                 if deepks_v_delta==1:
                     if os.path.exists(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy"):
                         v_delta_precalc=np.load(f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/deepks_vdpre.npy")
