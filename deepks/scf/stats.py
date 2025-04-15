@@ -96,7 +96,7 @@ def print_stats_s(s_err, indent=0):
 def print_stats_o(o_err, indent=0):
     ind = " "*indent
     print(ind+"Band gap:")
-    print(ind+f'  ME: \t {o_err.mean()}')
+    #print(ind+f'  ME: \t {o_err.mean()}')
     print(ind+f'  MAE: \t {np.abs(o_err).mean()}')
 
 def load_stat(systems, dump_dir,
@@ -144,7 +144,7 @@ def load_stat(systems, dump_dir,
             try:
                 ro = load_array(get_with_prefix(o_name, rbase, ".npy"))
                 lo = load_array(get_with_prefix("orbital", lbase, ".npy")).reshape(ro.shape)
-                o_err.append(np.abs(lo - ro))
+                o_err.append(np.abs(lo - ro).mean((-1,-2))) #Support different K-point configurations at the same time
             except FileNotFoundError as e:
                 print("Warning! orbital file not found:", e, file=sys.stderr)
     return np.concatenate(c_res, 0) if c_res else None, \
