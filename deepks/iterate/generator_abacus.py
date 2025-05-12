@@ -28,7 +28,7 @@ def make_abacus_scf_input(fp_params):
     if "scf_thr" in fp_params:
         ret += "scf_thr %e\n" % fp_params["scf_thr"]
     if "scf_nmax" in fp_params:
-        assert(fp_params['scf_nmax'] >= 0 and type(fp_params["scf_nmax"])== int), "'scf_nmax' should be a positive integer."
+        assert(fp_params['scf_nmax'] >= 0 and type(fp_params["scf_nmax"]) == int), "'scf_nmax' should be a positive integer."
         ret += "scf_nmax %d\n" % fp_params["scf_nmax"]    
     if "basis_type" in fp_params:
         assert(fp_params["basis_type"] in ["pw", "lcao", "lcao_in_pw"]) , "'basis_type' must in 'pw', 'lcao' or 'lcao_in_pw'."
@@ -36,7 +36,7 @@ def make_abacus_scf_input(fp_params):
     if "dft_functional" in fp_params:
         ret += "dft_functional %s\n" % fp_params["dft_functional"]
     if "gamma_only" in fp_params:
-        assert(fp_params["gamma_only"] ==0 or fp_params["gamma_only"] ==1 ) , "'gamma_only' should be 0 or 1."
+        assert(fp_params["gamma_only"] == 0 or fp_params["gamma_only"] == 1 ) , "'gamma_only' should be 0 or 1."
         ret+= "gamma_only %d\n" % fp_params["gamma_only"]  
     if "mixing_type" in fp_params:
         assert(fp_params["mixing_type"] in ["plain", "kerker", "pulay", "pulay-kerker", "broyden"])
@@ -73,6 +73,9 @@ def make_abacus_scf_input(fp_params):
     if "cal_stress" in fp_params:
         assert(fp_params["cal_stress"] == 0  or fp_params["cal_stress"] == 1), "'cal_stress' should be either 0 or 1."
         ret += "cal_stress %d\n" % fp_params["cal_stress"]    
+    if "out_dos" in fp_params:
+        assert(type(fp_params["out_dos"]) == int), "'out_dos' should be integer."
+        ret += "out_dos %d\n" % fp_params["out_dos"]
     #paras for deepks
     if "deepks_out_labels" in fp_params:
         assert(fp_params["deepks_out_labels"] == 0 or fp_params["deepks_out_labels"] == 1), "'deepks_out_labels' should be either 0 or 1."
@@ -81,9 +84,9 @@ def make_abacus_scf_input(fp_params):
         assert(fp_params["deepks_scf"] == 0  or fp_params["deepks_scf"] == 1), "'deepks_scf' should be either 0 or 1."
         ret += "deepks_scf %d\n" % fp_params["deepks_scf"]
     if "deepks_bandgap" in fp_params:
-        assert(fp_params["deepks_bandgap"] == 0  or fp_params["deepks_bandgap"] == 1 or fp_params["deepks_bandgap"] == 2), "'deepks_bandgap' should be either 0 or 1 or 2."
+        assert(type(fp_params["deepks_bandgap"]) == int), "'deepks_bandgap' should be integer."
         ret += "deepks_bandgap %d\n" % fp_params["deepks_bandgap"]
-    if fp_params["deepks_bandgap"] == 2:
+    if fp_params["deepks_bandgap"] == 2 or fp_params["deepks_bandgap"] == 3:
         assert(len(fp_params["deepks_band_range"]) == 2), "length of 'deepks_band_range' should be 2."
         ret += "deepks_band_range %d %d\n" % (fp_params["deepks_band_range"][0], fp_params["deepks_band_range"][1]) 
     if "deepks_v_delta" in fp_params:
