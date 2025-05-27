@@ -3,15 +3,13 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+from deepks.default import DEVICE
 # import psutil
 try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 
-# device: used in cal_v_delta, should be removed in the future
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#DEVICE = torch.device("cpu")
 
 def fit_elem_const(g_reader, test_reader=None, elem_table=None, ridge_alpha=0.):
     if elem_table is None:
@@ -102,18 +100,18 @@ def cal_v_delta(gev,gevdm,phialpha):
 
         temp_1=torch.einsum("...v,...vmn->...mn", gev_l, gevdm_l)
         # print(temp_1.shape)
-        del gev_l,gevdm_l
+        del gev_l, gevdm_l
 
         phialpha_l=phialpha[...,n*l:n*(l+1),:,:,:2*l+1]
         # print(phialpha_l.shape)
-        temp_2=torch.einsum("...mn,...kxn->...kxm",temp_1,phialpha_l)
+        temp_2 = torch.einsum("...mn,...kxn->...kxm",temp_1, phialpha_l)
         # print(temp_2.shape)
         del temp_1
 
         vdp_nl=torch.einsum("...alkxm,...alkym->...kxy",temp_2,phialpha_l)
         #vdp_nl=torch.einsum("...alkxy->kxy",temp_3)
         # print(vdp_nl.shape)
-        del temp_2,phialpha_l
+        del temp_2, phialpha_l
 
         v_delta+=vdp_nl
         # print(v_delta.shape)

@@ -92,3 +92,8 @@ def gather_system_data(nframes,data_dir,ref_dir,out_dir,npy_dict=NPY_DICT,**stat
                 basename = f[2:-6] + "_base"
                 base = np.stack(lists[basename], axis=0)
                 np.save(f"{out_dir}/{f}.npy", label - base)
+
+def format_check(data, size):
+    if data.shape != size:
+        raise ValueError(f"Data shape {data.shape} is not equal to {size}")
+    return data

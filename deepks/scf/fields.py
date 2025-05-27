@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List, Callable
 from dataclasses import dataclass, field
+from deepks.default import BOHR2ANG
 
 # Field = namedtuple("Field", ["name", "alias", "calc", "shape"])
 # LabelField = namedtuple("LabelField", ["name", "alias", "calc", "shape", "required_labels"])
@@ -24,13 +25,11 @@ def select_fields(names):
     return {"scf": scfs, "grad": grads}
 
 
-BOHR = 0.52917721092
-
 def isinbohr(mol):
     return mol.unit.upper().startswith(("B", "AU"))
 
 def _Lunit(mol):
-    return (1. if isinbohr(mol) else BOHR)
+    return (1. if isinbohr(mol) else BOHR2ANG)
 
 def atom_data(mol):
     raw_data = np.concatenate(

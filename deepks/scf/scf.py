@@ -7,11 +7,11 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf import gto
 from pyscf import scf, dft
+# from deepks.default import DEVICE
+DEVICE = 'cpu' # temporarily not use deepks.default.DEVICE
 from deepks.utils import load_basis, get_shell_sec
 from deepks.model.model import CorrNet
 from deepks.scf.penalty import PenaltyMixin
-
-DEVICE = 'cpu'#torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # all variables and functions start with "t_" are torch based.
 # all variables and functions ends with "0" are original base method results

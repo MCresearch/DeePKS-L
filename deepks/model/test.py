@@ -7,12 +7,10 @@ try:
 except ImportError as e:
     import sys
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
+from deepks.default import DEVICE
 from deepks.model.model import CorrNet
 from deepks.model.reader import GroupReader
 from deepks.utils import load_yaml, load_dirs, check_list
-
-
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def test(model, g_reader, dump_prefix="test", group=False):

@@ -1,25 +1,7 @@
 import os
 import numpy as np
 from glob import glob
-
-
-BOHR = 0.52917721092
-ELEMENTS = ['X',  # Ghost
-    'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 'O' , 'F' , 'Ne',
-    'Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar', 'K' , 'Ca',
-    'Sc', 'Ti', 'V' , 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
-    'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y' , 'Zr',
-    'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In', 'Sn',
-    'Sb', 'Te', 'I' , 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd',
-    'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb',
-    'Lu', 'Hf', 'Ta', 'W' , 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg',
-    'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th',
-    'Pa', 'U' , 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm',
-    'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds',
-    'Rg', 'Cn', 'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 'Og',
-]
-CHARGES = dict(((x,i) for i,x in enumerate(ELEMENTS)))
-
+from deepks.default import BOHR2ANG, ELEMENTS, NAME_TYPE
 
 def parse_xyz(filename):
     with open(filename) as fp:
@@ -38,7 +20,7 @@ def parse_unit(rawunit):
             unit = float(rawunit)
         except ValueError:
             if rawunit.upper().startswith(('B', 'AU')):
-                unit = BOHR
+                unit = BOHR2ANG
             else: #unit[:3].upper() == 'ANG':
                 unit = 1.
     else:
@@ -102,7 +84,7 @@ def dump_systems(xyz_files, dump_dir, unit="Bohr", ext_type=False):
         np.savetxt(os.path.join(dump_dir, "type.raw"), ele, fmt="%s")
         np.save(os.path.join(dump_dir, "coord.npy"), a_coord)
     else:
-        a_chg = [[[CHARGES[e]] for e in ele] for ele in a_ele]
+        a_chg = [[[NAME_TYPE[e]] for e in ele] for ele in a_ele]
         a_atom = np.concatenate([a_chg, a_coord], axis=-1)
         np.save(os.path.join(dump_dir, "atom.npy"), a_atom)
     if not all(ene is None for ene in a_energy):

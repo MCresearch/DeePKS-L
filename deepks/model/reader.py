@@ -1,7 +1,6 @@
 import os,time,sys
 import numpy as np
 import torch
-# import psutil
 
 def concat_batch(tdicts, dim=0):
     keys = tdicts[0].keys()
@@ -25,39 +24,6 @@ def generalized_eigh(h,L_inv):
     e,v=torch.linalg.eigh(symm_h)
     phi=L_inv.mT @ v 
     return e,phi
-
-#not used now
-def cal_vdp(phialpha,gevdm):
-    # process = psutil.Process(os.getpid())
-    # before_memory_usage = process.memory_info().rss
-    # start=time.time()
-
-    v_delta_precalc_temp=torch.einsum("...kyan,...avmn->...kyavm",phialpha,gevdm)
-
-    v_delta_precalc=torch.einsum("...kxam,...kyavm->...kxyav",phialpha,v_delta_precalc_temp)
-    del v_delta_precalc_temp
-
-    #reshape v_delta_precalc
-    mmax=v_delta_precalc.size(-1)
-    lmax=int((mmax-1)/2)
-    n=int(v_delta_precalc.size(1)/(lmax+1))
-
-    vdp_vector=[]
-    for l in range(lmax+1):
-        ll=v_delta_precalc[:,n*l:n*(l+1),...,:2*l+1]
-        ll=ll.permute(0,2,3,4,5,1,6)
-        ll=ll.flatten(start_dim=-2)
-        vdp_vector.append(ll)
-    vdp=torch.cat(vdp_vector,dim=-1)
-    del vdp_vector
-
-    # end=time.time()
-    # after_memory_usage = process.memory_info().rss
-    # memory_growth = after_memory_usage - before_memory_usage
-    # print(f"Memory growth during cal vdp: {memory_growth / 1024 / 1024} MB")
-
-    # print("all cal_vdp time:",end-start)
-    return vdp
 
 class Reader(object):
     def __init__(self, data_path, batch_size, 
@@ -174,7 +140,7 @@ class Reader(object):
                 np.load(self.o_path)[conv])
             self.t_data["op"] = torch.tensor(
                 np.load(self.op_path)[conv])
-        # Hamiltonian
+        # Hamiltonian in k space
         if self.h_path is not None and (self.vdp_path is not None or (self.phialpha_path is not None and self.gevdm_path is not None)):
             h_shape = np.load(self.h_path).shape
             assert h_shape[-1] == h_shape[-2], \
@@ -205,11 +171,10 @@ class Reader(object):
                 self.t_data["gevdm"] = torch.tensor(
                     np.load(self.gevdm_path)\
                       .reshape(raw_nframes, self.natm, nl, mmax, mmax, mmax)[conv]) 
-                # vdp=cal_vdp(phialpha,gevdm)
                 # self.t_data["vdp"] = vdp\
                 #         .reshape(raw_nframes, -1, self.nlocal, self.nlocal, self.natm, self.ndesc)[conv].clone()
             
-            #for phi labels and band labels
+            # for phi labels and band labels
             self.t_data["h_base"]=torch.tensor(
                 np.load(self.h_base_path)\
                   .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]) #-1 for nks

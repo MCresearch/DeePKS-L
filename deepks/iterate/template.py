@@ -2,56 +2,13 @@ import os
 import sys
 import numpy as np
 from glob import glob
+from deepks.default import SCF_CMD, TRN_CMD, DEFAULT_SCF_RES, DEFAULT_SCF_SUB_RES, DEFAULT_TRN_RES, DEFAULT_DPDISPATCHER_RES
 from deepks.utils import check_list
 from deepks.utils import flat_file_list
 from deepks.utils import get_sys_name, load_sys_paths
 from deepks.task.task import PythonTask, ShellTask
 from deepks.task.task import BatchTask, GroupBatchTask, DPDispatcherTask
 from deepks.task.workflow import Sequence
-from deepks.utils import QCDIR
-
-
-SCF_CMD = " ".join([
-    "{python} -u",
-    "-m deepks.scf.run"
-    # os.path.join(QCDIR, "scf/run.py") # this is the backup choice
-])
-
-TRN_CMD = " ".join([
-    "{python} -u",
-    "-m deepks.model.train"
-    # os.path.join(QCDIR, "train/train.py") # this is the backup choice
-])
-
-
-DEFAULT_SCF_RES = {
-    "time_limit": "24:00:00",
-    "cpus_per_task": 8,
-    "mem_limit": 8,
-    "envs": {
-        "PYSCF_MAX_MEMORY": 8000
-    }
-}
-
-DEFAULT_SCF_SUB_RES = {
-    "numb_node": 1,
-    "task_per_node": 1,
-    "cpus_per_task": 8,
-    "exclusive": True
-}
-
-DEFAULT_TRN_RES = {
-    "time_limit": "24:00:00",
-    "cpus_per_task": 8,
-    # "numb_gpu": 1, # do not use gpu by default
-    "mem_limit": 8
-}
-
-DEFAULT_DPDISPATCHER_RES = {
-    "number_node": 1,
-    "cpu_per_node": 8,
-    "group_size": 1
-}
 
 def check_system_names(systems):
     sys_names = [get_sys_name(os.path.basename(s)) for s in systems]

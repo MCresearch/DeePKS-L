@@ -8,17 +8,12 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
+from deepks.default import DEVICE
 from deepks.model.model import CorrNet
 from deepks.model.reader import GroupReader
 from deepks.utils import load_dirs, load_elem_table
 from deepks.model.utils import preprocess, fit_elem_const, make_loss
 from deepks.model.evaluator import Evaluator, NatomLossList
-
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#DEVICE = torch.device("cpu")
-
-# equiv to nn.MSELoss()
-L2LOSS = make_loss()
 
 def train(model, g_reader, n_epoch=1000, test_reader=None, *,
           energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
@@ -67,7 +62,7 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
                           energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal)
     if not display_detail_test:
         # make test evaluator that only returns l2loss of energy
-        test_eval = Evaluator(energy_factor=1., energy_lossfn=L2LOSS, 
+        test_eval = Evaluator(energy_factor=1., energy_lossfn=make_loss(), # default l2 loss 
                             force_factor=0., density_factor=0., grad_penalty=0.,energy_per_atom=energy_per_atom)
     else:
         # make test evaluator that returns loss of every concerned items, but all with factor==1

@@ -8,6 +8,14 @@ __all__ = ["Workflow", "Sequence", "Iteration"]
 
 
 class Workflow(AbstructStep):
+    '''
+    A workflow is a collection of tasks, which can be run in sequence.
+    It can be used to organize a series of tasks, and can be nested.
+    Parameters:
+    - child_tasks: a list of tasks
+    - workdir: the working directory of the workflow
+    - record_file: a file to record the tags of the finished tasks, using for restart
+    '''
     def __init__(self, child_tasks, workdir='.', record_file=None):
         super().__init__(workdir)
         self.record_file = get_abs_path(record_file)
@@ -31,6 +39,7 @@ class Workflow(AbstructStep):
         
     def run(self, parent_tag=(), restart_tag=None):
         start_idx = 0
+        print_restart = False
         if restart_tag is not None:
             last_idx = restart_tag[0]
             rest_tag = restart_tag[1:]
@@ -41,13 +50,45 @@ class Workflow(AbstructStep):
                 last_tag = parent_tag+(last_idx,)
                 self.child_tasks[last_idx].run(last_tag, restart_tag=rest_tag)
                 self.write_record(last_tag)
+                print_prefix = ""
+                print_suffix = ""
+                for j in range(len(parent_tag)):
+                    print_prefix += "║"
+                for j in range(self.max_depth()-1):
+                    print_suffix += "═"
+                print(print_prefix + "╚" + print_suffix + " [        FINISH ] " + str(last_tag))
+            else:
+                print_restart = True
             start_idx = last_idx + 1
+            if start_idx == len(self.child_tasks):
+                print_prefix = ""
+                print_suffix = ""
+                for j in range(len(parent_tag)):
+                    print_prefix += "║"
+                for j in range(self.max_depth()-1):
+                    print_suffix += "═"
+                if not print_restart:
+                    print(print_prefix + "╚" + print_suffix + " [        FINISH ] " + str(parent_tag + (last_idx,)))
+                else:
+                    print(print_prefix + "╚" + print_suffix + " [ RESTART       ] " + str(parent_tag + (last_idx,)))
+                    print_restart = False
         for i in range(start_idx, len(self.child_tasks)):
             curr_tag = parent_tag + (i,)
-            print('# starting step:', curr_tag) 
+            print_prefix = ""
+            print_suffix = ""
+            for j in range(len(parent_tag)):
+                print_prefix += "║"
+            for j in range(self.max_depth()-1):
+                print_suffix += "═"
+            if not print_restart:
+                print(print_prefix + "╔" + print_suffix + " [ START         ] " + str(curr_tag))
+            else:
+                print(print_prefix + "╠" + print_suffix + " [ RESTART       ] " + str(curr_tag))
+                print_restart = False
             task = self.child_tasks[i]
             task.run(curr_tag)
             self.write_record(curr_tag)
+            print(print_prefix + "╚" + print_suffix + " [        FINISH ] " + str(curr_tag))
             
     def prepend_workdir(self, path):
         super().prepend_workdir(path)
@@ -69,6 +110,9 @@ class Workflow(AbstructStep):
             lf.write(tag + '\n')
 
     def max_depth(self):
+        '''
+        Return the maximum depth of the workflow tree
+        '''
         if not any(isinstance(task, Workflow) for task in self.child_tasks):
             return 1
         else:
@@ -83,7 +127,6 @@ class Workflow(AbstructStep):
             all_tags = [tuple(map(int, l.split())) for l in lf.readlines()]
         # assert max(map(len, all_tags)) == self.max_depth()
         restart_tag = all_tags[-1]
-        print('# restarting after step', restart_tag)
         self.run((), restart_tag=restart_tag)
         
     def __getitem__(self, idx):
@@ -115,8 +158,29 @@ class Workflow(AbstructStep):
         self.child_tasks.insert(0, self.make_child(task))
         self.postmod_hook()
 
+    def get_num_tasks(self):
+        '''
+        Return the number of tot minimal tasks(AbstructStep) in the workflow
+        '''
+        num = 0
+        for task in self.child_tasks:
+            if isinstance(task, Workflow):
+                num += task.get_num_tasks()
+            else:
+                num += 1
+        return num
+
 
 class Sequence(Workflow):
+    '''
+    A sequence is a workflow that runs its child tasks in sequence.
+    Chain the tasks by setting the previous task of each task to the previous task in the sequence.
+    Parameters:
+    - child_tasks: a list of tasks
+    - workdir: the working directory of the workflow
+    - record_file: a file to record the tags of the finished tasks, using for restart
+    - init_folder: the initial folder of the first task
+    '''
     def __init__(self, child_tasks, workdir='.', record_file=None, init_folder=None):
         # would reset all tasks' prev folder into their prev task, except for the first one
         super().__init__(child_tasks, workdir, record_file)
@@ -142,6 +206,15 @@ class Sequence(Workflow):
 
 
 class Iteration(Sequence):
+    '''
+    An iteration is a sequence that runs its child tasks for multiple times.
+    Parameters:
+    - task: a task to be iterated
+    - iternum: the number of iterations
+    - workdir: the working directory of the workflow
+    - record_file: a file to record the tags of the finished tasks, using for restart
+    - init_folder: the initial folder of the first task
+    '''
     def __init__(self, task, iternum, workdir='.', record_file=None, init_folder=None):
         # iterated task should have workdir='.' to avoid redundant folders
         # handle multple tasks by first make a sequence

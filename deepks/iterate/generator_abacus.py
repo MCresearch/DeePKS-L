@@ -1,11 +1,12 @@
-#These 3 functions are copied from dpgen to generate ABACUS INPUT , KPT and STRU file.
-
-BOHR2ANG = 0.52917721067
+from deepks.default import BOHR2ANG
+# These 3 functions are used to generate ABACUS INPUT, KPT and STRU file.
 
 def make_abacus_scf_kpt(fp_params):
-    # Make KPT file for abacus pw scf calculation.
-    # KPT file is the file containing k points infomation in ABACUS scf calculation.
-    k_points = [1, 1, 1, 0, 0, 0]
+    '''
+    Make KPT file for abacus scf calculation.
+    KPT file is the file containing k points infomation in ABACUS scf calculation.
+    '''
+    k_points = [1, 1, 1, 0, 0, 0] # Default k points
     if "k_points" in fp_params:
         k_points = fp_params["k_points"]
         if len(k_points) != 6:
@@ -16,14 +17,14 @@ def make_abacus_scf_kpt(fp_params):
     return ret
 
 def make_abacus_scf_input(fp_params):
-    # Make INPUT file for abacus pw scf calculation.
+    '''
+    Make INPUT file for abacus scf calculation.
+    '''
     ret = "INPUT_PARAMETERS\n"
     ret += "calculation scf\n"
-    # assert(fp_params['ntype'] >= 0 and type(fp_params["ntype"]) == int),  "'ntype' should be a positive integer."
-    # ret += "ntype %d\n" % fp_params['ntype']
-    #ret += "pseudo_dir ./\n"
+    # ret += "pseudo_dir ./\n"
     if "ecutwfc" in fp_params:
-        assert(fp_params["ecutwfc"] >= 0) ,  "'ntype' should be non-negative."
+        assert(fp_params["ecutwfc"] >= 0) ,  "'ecutwfc' should be non-negative."
         ret += "ecutwfc %f\n" % fp_params["ecutwfc"]
     if "scf_thr" in fp_params:
         ret += "scf_thr %e\n" % fp_params["scf_thr"]
@@ -45,7 +46,7 @@ def make_abacus_scf_input(fp_params):
         assert(fp_params["mixing_beta"] >= 0 and fp_params["mixing_beta"] < 1), "'mixing_beta' should between 0 and 1."
         ret += "mixing_beta %f\n" % fp_params["mixing_beta"]
     if "symmetry" in fp_params:
-        #assert(fp_params["symmetry"] == 0 or fp_params["symmetry"] == 1), "'symmetry' should be either 0 or 1."
+        assert(fp_params["symmetry"] == -1 or fp_params["symmetry"] == 0 or fp_params["symmetry"] == 1), "'symmetry' should be either -1, 0 or 1."
         ret += "symmetry %d\n" % fp_params["symmetry"]
     if "nbands" in fp_params:
         if(type(fp_params["nbands"]) == int and fp_params["nbands"] > 0):
@@ -73,7 +74,7 @@ def make_abacus_scf_input(fp_params):
     if "cal_stress" in fp_params:
         assert(fp_params["cal_stress"] == 0  or fp_params["cal_stress"] == 1), "'cal_stress' should be either 0 or 1."
         ret += "cal_stress %d\n" % fp_params["cal_stress"]    
-    #paras for deepks
+    # Parameters for deepks
     if "deepks_out_labels" in fp_params:
         assert(fp_params["deepks_out_labels"] == 0 or fp_params["deepks_out_labels"] == 1), "'deepks_out_labels' should be either 0 or 1."
         ret += "deepks_out_labels %d\n" % fp_params["deepks_out_labels"]
@@ -87,12 +88,13 @@ def make_abacus_scf_input(fp_params):
         assert(len(fp_params["deepks_band_range"]) == 2), "length of 'deepks_band_range' should be 2."
         ret += "deepks_band_range %d %d\n" % (fp_params["deepks_band_range"][0], fp_params["deepks_band_range"][1]) 
     if "deepks_v_delta" in fp_params:
-        assert(fp_params["deepks_v_delta"] == 0  or fp_params["deepks_v_delta"] == 1 or fp_params["deepks_v_delta"] == 2), "'deepks_v_delta' should be either 0/1/2."
+        assert(fp_params["deepks_v_delta"] == -1  or fp_params["deepks_v_delta"] == 0  or fp_params["deepks_v_delta"] == 1 or fp_params["deepks_v_delta"] == 2), "'deepks_v_delta' should be either -1/0/1/2."
         ret += "deepks_v_delta %d\n" % fp_params["deepks_v_delta"]
     if "model_file" in fp_params:
         ret += "deepks_model %s\n" % fp_params["model_file"]
     if "out_wfc_lcao" in fp_params:
         ret += "out_wfc_lcao %s\n" % fp_params["out_wfc_lcao"]
+    # Set the parameters for HSE calculation
     if fp_params["dft_functional"] == "hse":
         ret += "exx_pca_threshold 1e-4\n"
         ret += "exx_c_threshold 1e-4\n"
@@ -103,6 +105,9 @@ def make_abacus_scf_input(fp_params):
     return ret
 
 def make_abacus_scf_stru(sys_data, fp_pp_files, fp_params):
+    '''
+    Make STRU file for abacus scf calculation.
+    '''
     atom_names = sys_data['atom_names']  # Get the list of atom names, e.g., ['Cs', 'Pb', 'I']
     atom_numbs = sys_data['atom_numbs']  # Get the number of each atom type, e.g., [4, 4, 12]
     
@@ -140,7 +145,7 @@ def make_abacus_scf_stru(sys_data, fp_pp_files, fp_params):
         ret += f"{fp_params['lattice_constant']}\n\n"  # in Bohr
     else:
         ret += "\nLATTICE_CONSTANT\n"
-        ret += f"{1 / bohr2ang}\n\n"  # Default value is 1/bohr2ang
+        ret += f"{1 / BOHR2ANG}\n\n"  # Default value is 1/BOHR2ANG
     
     ret += "LATTICE_VECTORS\n"
     cell = sys_data["cells"][0].reshape([3, 3])
