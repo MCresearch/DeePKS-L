@@ -22,7 +22,16 @@ def test(model, g_reader, dump_prefix="test", group=False):
     for i in range(g_reader.nsystems):
         sample = g_reader.sample_all(i)
         nframes = sample["lb_e"].shape[0]
-        sample = {k: v.to(DEVICE, non_blocking=True) for k, v in sample.items()}
+        for k, v in sample.items():
+            if isinstance(v, list):
+                sample[k] = [vv.to(DEVICE, non_blocking=True) for vv in v]
+            elif not torch.is_complex(v):
+                sample[k] = v.to(DEVICE, non_blocking=True)
+            else:
+                if k == "phialpha":
+                    sample[k] = v.to("cpu", dtype=torch.complex128, non_blocking=True)
+                else:
+                    sample[k] = v.to(DEVICE, dtype=torch.complex128, non_blocking=True)
         label, data = sample["lb_e"], sample["eig"]
         pred = model(data)
         error = torch.sqrt(loss_fn(pred, label))

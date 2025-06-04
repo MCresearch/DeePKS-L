@@ -77,18 +77,22 @@ def make_loss(cap=None, shrink=None, reduction="mean"):
     return loss_fn
 
 ## The following four functions are used only in Evaluator class
-def cal_v_delta(gev,gevdm,phialpha):
+def cal_v_delta(gev,gevdm,phialpha,device=DEVICE):
     # process = psutil.Process(os.getpid())
     # before_memory_usage = process.memory_info().rss
 
     mmax=phialpha.size(-1)
     lmax=int((mmax-1)/2)
-    n=int(phialpha.size(2)/(lmax+1))
+    n=int(phialpha.size(2)/(lmax+1)) # number of orbitals in each l
+
+    dtype=phialpha.dtype
+    gev=gev.to(dtype)
+    gevdm=gevdm.to(dtype)
 
     n_batch=phialpha.size(0)
     nks=phialpha.size(-3)
     nlocal=phialpha.size(-2)
-    v_delta=torch.zeros([n_batch,nks,nlocal,nlocal],dtype=gev.dtype,device=DEVICE)
+    v_delta=torch.zeros([n_batch,nks,nlocal,nlocal],dtype=dtype,device=device)
     for l in range(lmax+1):
         gevdm_l=gevdm[...,n*l:n*(l+1),:2*l+1,:2*l+1,:2*l+1]
         gev_l=gev[...,n*l**2:n*(l+1)**2]
@@ -103,12 +107,13 @@ def cal_v_delta(gev,gevdm,phialpha):
         del gev_l, gevdm_l
 
         phialpha_l=phialpha[...,n*l:n*(l+1),:,:,:2*l+1]
+        phialpha_l = phialpha_l.to(device)
         # print(phialpha_l.shape)
         temp_2 = torch.einsum("...mn,...kxn->...kxm",temp_1, phialpha_l)
         # print(temp_2.shape)
         del temp_1
 
-        vdp_nl=torch.einsum("...alkxm,...alkym->...kxy",temp_2,phialpha_l)
+        vdp_nl=torch.einsum("...alkxm,...alkym->...kxy",temp_2, phialpha_l.conj())
         #vdp_nl=torch.einsum("...alkxy->kxy",temp_3)
         # print(vdp_nl.shape)
         del temp_2, phialpha_l

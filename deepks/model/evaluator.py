@@ -92,12 +92,22 @@ class Evaluator:
         self.energy_per_atom=energy_per_atom
 
     def __call__(self, model, sample):
-        _dref = next(model.parameters())
+        _dref = next(model.parameters()).device
         #print("_dref:")
         #print(_dref)
         tot_loss = 0.
         loss=[]
-        sample = {k: v.to(_dref, non_blocking=True) for k, v in sample.items()}
+        # keep only phialpha in cpu, move all other data to _dref, set complex dtype to complex128
+        for k, v in sample.items():
+            if isinstance(v, list):
+                sample[k] = [vv.to(_dref, non_blocking=True) for vv in v]
+            elif not torch.is_complex(v):
+                sample[k] = v.to(_dref, non_blocking=True)
+            else:
+                if k == "phialpha":
+                    sample[k] = v.to("cpu", dtype=torch.complex128, non_blocking=True)
+                else:
+                    sample[k] = v.to(_dref, dtype=torch.complex128, non_blocking=True)
         e_label, eig = sample["lb_e"], sample["eig"]
         nframe = e_label.shape[0]
         requires_grad =  ( (self.f_factor > 0 and "lb_f" in sample) 
@@ -151,7 +161,7 @@ class Evaluator:
                 or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
                 # cal v_delta
                 if "vdp" in sample:
-                    vdp = sample["vdp"]
+                    vdp = sample["vdp"] # can be complex
                     vd_pred = torch.einsum("...kxyap,...ap->...kxy", vdp, gev)
                 elif "phialpha" in sample and "gevdm" in sample:                  
                     # start=time()
@@ -211,7 +221,7 @@ class Evaluator:
         return loss
     
     def print_head(self,name,data_keys):
-        len=18
+        len=20
         info=f"{name}_energy".rjust(len)
         if self.g_penalty > 0 and "eg0" in data_keys:
             info+=f"{name}_grad".rjust(len)
