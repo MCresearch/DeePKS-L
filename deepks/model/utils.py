@@ -60,7 +60,7 @@ def make_loss(cap=None, shrink=None, reduction="mean"):
         diff = target - input
         if shrink and shrink > 0:
             diff = F.softshrink(diff, shrink)
-        sqdf = diff ** 2
+        sqdf = torch.abs(diff)**2 # use abs to avoid complex number
         if cap and cap > 0: # SmoothL2 loss
             abdf = diff.abs()
             sqdf = torch.where(abdf < cap, sqdf, cap * (2*abdf - cap))
