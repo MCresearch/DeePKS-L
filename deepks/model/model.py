@@ -7,8 +7,7 @@ from torch.nn import functional as F
 from deepks.utils import load_basis, get_shell_sec
 from deepks.utils import load_elem_table, save_elem_table
 
-SCALE_EPS = 1e-8
-
+SCALE_EPS = 1e-8 # avoid zero division
 
 def parse_actv_fn(code):
     if callable(code):

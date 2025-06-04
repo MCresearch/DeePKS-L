@@ -1,7 +1,6 @@
 import os,time,sys
 import numpy as np
 import torch
-# import psutil
 
 def concat_batch(tdicts, dim=0):
     keys = tdicts[0].keys()
@@ -23,41 +22,8 @@ def split_batch(tdict, size, dim=0):
 def generalized_eigh(h,L_inv):
     symm_h=L_inv @ h @ L_inv.mT
     e,v=torch.linalg.eigh(symm_h)
-    psi=L_inv.mT @ v 
-    return e,psi
-
-#not used now
-def cal_vdp(psialpha,gevdm):
-    # process = psutil.Process(os.getpid())
-    # before_memory_usage = process.memory_info().rss
-    # start=time.time()
-
-    v_delta_precalc_temp=torch.einsum("...kyan,...avmn->...kyavm",psialpha,gevdm)
-
-    v_delta_precalc=torch.einsum("...kxam,...kyavm->...kxyav",psialpha,v_delta_precalc_temp)
-    del v_delta_precalc_temp
-
-    #reshape v_delta_precalc
-    mmax=v_delta_precalc.size(-1)
-    lmax=int((mmax-1)/2)
-    n=int(v_delta_precalc.size(1)/(lmax+1))
-
-    vdp_vector=[]
-    for l in range(lmax+1):
-        ll=v_delta_precalc[:,n*l:n*(l+1),...,:2*l+1]
-        ll=ll.permute(0,2,3,4,5,1,6)
-        ll=ll.flatten(start_dim=-2)
-        vdp_vector.append(ll)
-    vdp=torch.cat(vdp_vector,dim=-1)
-    del vdp_vector
-
-    # end=time.time()
-    # after_memory_usage = process.memory_info().rss
-    # memory_growth = after_memory_usage - before_memory_usage
-    # print(f"Memory growth during cal vdp: {memory_growth / 1024 / 1024} MB")
-
-    # print("all cal_vdp time:",end-start)
-    return vdp
+    phi=L_inv.mT @ v 
+    return e,phi
 
 class Reader(object):
     def __init__(self, data_path, batch_size, 
@@ -66,7 +32,7 @@ class Reader(object):
                  s_name="l_s_delta", gvepsl_name="grad_vepsl", 
                  o_name="l_o_delta", op_name="orbital_precalc",
                  h_name="l_h_delta", vdp_name="v_delta_precalc",
-                 psialpha_name="psialpha",gevdm_name="grad_evdm",
+                 phialpha_name="phialpha",gevdm_name="grad_evdm",
                  h_base_name="h_base",h_ref_name="hamiltonian",
                  read_overlap = False, overlap_name="overlap",
                  eg_name="eg_base", gveg_name="grad_veg", 
@@ -82,7 +48,7 @@ class Reader(object):
         self.h_base_path=self.check_exist(h_base_name+".npy")
         self.h_ref_path=self.check_exist(h_ref_name+".npy")
         self.overlap_path=self.check_exist(overlap_name+".npy")
-        self.psialpha_path=self.check_exist(psialpha_name+".npy")
+        self.phialpha_path=self.check_exist(phialpha_name+".npy")
         self.gevdm_path=self.check_exist(gevdm_name+".npy")
         self.d_path = self.check_exist(d_name+".npy")
         self.gvx_path = self.check_exist(gvx_name+".npy")
@@ -174,8 +140,8 @@ class Reader(object):
                 np.load(self.o_path)[conv])
             self.t_data["op"] = torch.tensor(
                 np.load(self.op_path)[conv])
-        # Hamiltonian
-        if self.h_path is not None and (self.vdp_path is not None or (self.psialpha_path is not None and self.gevdm_path is not None)):
+        # Hamiltonian in k space
+        if self.h_path is not None and (self.vdp_path is not None or (self.phialpha_path is not None and self.gevdm_path is not None)):
             h_shape = np.load(self.h_path).shape
             assert h_shape[-1] == h_shape[-2], \
                 f"The last two dimension of H must have the same size , which is nlocal"
@@ -185,9 +151,9 @@ class Reader(object):
                   .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]) #-1 for nks
             
             # for v_delta_precalc
-            if self.vdp_path is not None and (self.psialpha_path is not None and self.gevdm_path is not None): #both file exist, choose newer ones
-                if os.path.getmtime(self.vdp_path) >= os.path.getmtime(self.psialpha_path):#psialpha and gevdm modified at the same time
-                    self.psialpha_path=None
+            if self.vdp_path is not None and (self.phialpha_path is not None and self.gevdm_path is not None): #both file exist, choose newer ones
+                if os.path.getmtime(self.vdp_path) >= os.path.getmtime(self.phialpha_path):#phialpha and gevdm modified at the same time
+                    self.phialpha_path=None
                     self.gevdm_path=None
                 else:
                     self.vdp_path=None
@@ -195,21 +161,20 @@ class Reader(object):
                 self.t_data["vdp"] = torch.tensor(
                     np.load(self.vdp_path)\
                         .reshape(raw_nframes, -1, self.nlocal, self.nlocal, self.natm, self.ndesc)[conv])
-            elif self.psialpha_path is not None and self.gevdm_path is not None:
-                psialpha=np.load(self.psialpha_path)
-                nl=psialpha.shape[2]
-                mmax=psialpha.shape[-1]
-                self.t_data["psialpha"] = torch.tensor(
-                    psialpha\
+            elif self.phialpha_path is not None and self.gevdm_path is not None:
+                phialpha=np.load(self.phialpha_path)
+                nl=phialpha.shape[2]
+                mmax=phialpha.shape[-1]
+                self.t_data["phialpha"] = torch.tensor(
+                    phialpha\
                         .reshape(raw_nframes, self.natm, nl, -1, self.nlocal, mmax)[conv])#-1 for nks
                 self.t_data["gevdm"] = torch.tensor(
                     np.load(self.gevdm_path)\
                       .reshape(raw_nframes, self.natm, nl, mmax, mmax, mmax)[conv]) 
-                # vdp=cal_vdp(psialpha,gevdm)
                 # self.t_data["vdp"] = vdp\
                 #         .reshape(raw_nframes, -1, self.nlocal, self.nlocal, self.natm, self.ndesc)[conv].clone()
             
-            #for psi labels and band labels
+            # for phi labels and band labels
             self.t_data["h_base"]=torch.tensor(
                 np.load(self.h_base_path)\
                   .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]) #-1 for nks
@@ -221,12 +186,12 @@ class Reader(object):
                 L_inv=torch.linalg.inv(L)
                 self.t_data["L_inv"]=L_inv\
                         .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
-                band_ref,psi_ref=generalized_eigh(h_ref,L_inv)    
+                band_ref,phi_ref=generalized_eigh(h_ref,L_inv)    
             else:
-                band_ref,psi_ref=torch.linalg.eigh(h_ref,UPLO='U') # U for upper triangle
+                band_ref,phi_ref=torch.linalg.eigh(h_ref,UPLO='U') # U for upper triangle
             self.t_data["lb_band"]=band_ref\
                   .reshape(raw_nframes, -1, self.nlocal)[conv].clone()             
-            self.t_data["lb_psi"]=psi_ref\
+            self.t_data["lb_phi"]=phi_ref\
                   .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()      
         # Energy gradient
         if self.eg_path is not None and self.gveg_path is not None:

@@ -12,7 +12,7 @@ def main_cli(args=None):
     '''
         Main function for DeepKS running. Call subfunctions to realize.
     '''
-    print("use modified deepks!")
+    # print("use modified deepks!")
     parser = argparse.ArgumentParser(
                 prog="deepks",
                 description="A program to generate accurate energy functionals.")

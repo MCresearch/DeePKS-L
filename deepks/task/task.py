@@ -11,10 +11,13 @@ from contextlib import nullcontext, redirect_stdout, redirect_stderr
 from deepks.task.job.dispatcher import Dispatcher
 
 
-__all__ = ["BlankTask", "PythonTask", "ShellTask", "BatchTask", "GroupBatchTask"]
+__all__ = ["BlankTask", "PythonTask", "ShellTask", "BatchTask", "GroupBatchTask", "DPDispatcherTask"]
 
 
 class AbstructStep(object):
+    '''
+    An abstract class for a single step in the pipeline.
+    '''
     def __init__(self, workdir):
         self.workdir = Path(workdir)
         
@@ -32,6 +35,16 @@ class AbstructStep(object):
 
 
 class AbstructTask(AbstructStep):
+    '''
+    An abstract class for a task in the pipeline.
+    The key methods are preprocess, execute, and postprocess, corresponding to the three stages of a task.
+    Parameters:
+    - workdir: the working directory (relative) of the task.
+    - backup: whether to create the working directory at parent directory.
+    - *prev*: the previous task or folder, used for linking or copying files.
+    - *share*: the shared folder, used for linking or copying files.
+    - *abs*: the absolute path, used for linking or copying files.
+    '''
     def __init__(self, workdir='.', backup=False, prev_task=None,
                  prev_folder=None, link_prev_files=None, copy_prev_files=None, 
                  share_folder=None, link_share_files=None, copy_share_files=None,
@@ -53,6 +66,9 @@ class AbstructTask(AbstructStep):
         self.copy_abs_files = check_list(copy_abs_files)
         
     def preprocess(self):
+        '''
+        Create the working directory and link or copy files from previous tasks or shared folders.
+        '''
         create_dir(self.workdir, self.backup)
         if self.prev_folder is None and (self.link_prev_files or self.copy_prev_files):
             self.prev_folder = self.prev_task.workdir
@@ -100,11 +116,23 @@ class AbstructTask(AbstructStep):
 
 
 class BlankTask(AbstructTask):
+    '''
+    A blank task that does nothing.
+    '''
     def execute(self):
         pass
 
 
 class PythonTask(AbstructTask):
+    '''
+    A task that runs a Python callable.
+    Parameters:
+    - pycallable: the Python callable to run.
+    - call_args: the positional arguments to pass to the callable.
+    - call_kwargs: the keyword arguments to pass to the callable.
+    - outlog: the file to redirect stdout to.
+    - errlog: the file to redirect stderr to.
+    '''
     def __init__(self, pycallable, 
                  call_args=None, call_kwargs=None, 
                  outlog=None, errlog=None,
@@ -127,6 +155,14 @@ class PythonTask(AbstructTask):
 
 
 class ShellTask(AbstructTask):
+    '''
+    A task that runs a shell command.
+    Parameters:
+    - cmd: the shell command to run.
+    - env: the environment variables to set.
+    - outlog: the file to redirect stdout to.
+    - errlog: the file to redirect stderr to.
+    '''
     def __init__(self, cmd, env=None,
                  outlog=None, errlog=None,
                  **task_args):
@@ -145,6 +181,16 @@ class ShellTask(AbstructTask):
 
 
 class BatchTask(AbstructTask):
+    '''
+    A task that runs a batch of commands. Supports different dispatchers.
+    Parameters:
+    - cmds: the list of shell commands to run.
+    - dispatcher: the dispatcher to use.
+    - resources: the resources to request.
+    - outlog: the file to redirect stdout to.
+    - errlog: the file to redirect stderr to.
+    - *_files: the files to forward or backward.
+    '''
     def __init__(self, cmds, 
                  dispatcher=None, resources=None, 
                  outlog='log', errlog='err', 
@@ -179,6 +225,14 @@ class BatchTask(AbstructTask):
 
 
 class GroupBatchTask(AbstructTask):
+    '''
+    A task that groups a batch of tasks. Supports different dispatchers.
+    Parameters:
+    - batch_tasks: the list of tasks to group.
+    - group_size: the size of each group.
+    - ingroup_parallel: the degree of parallelism within each group.
+    - [others]: the same as BatchTask.
+    '''
     # after grouping up, the following individual setting would be ignored:
     # dispatcher, outlog, errlog
     # only grouped one setting in this task would be effective
@@ -239,8 +293,12 @@ class GroupBatchTask(AbstructTask):
         super().set_prev_folder(path)
         for t in self.batch_tasks:
             t.set_prev_folder(path)
-            
+
+
 class DPDispatcherTask(AbstructTask):
+    '''
+    A task that dispatches a batch of tasks to Bohrium(a calculation platform).
+    '''
     # after grouping up, the following individual setting would be ignored:
     # dispatcher, outlog, errlog
     # only grouped one setting in this task would be effective

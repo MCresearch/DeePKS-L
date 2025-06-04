@@ -8,6 +8,7 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
+from deepks.default import DEFAULT_UNIT, DEFAULT_FNAMES, DEFAULT_HF_ARGS, DEFAULT_SCF_ARGS, MOL_ATTRIBUTE
 from deepks.scf.scf import DSCF, UDSCF
 from deepks.scf.fields import select_fields
 from deepks.scf.penalty import select_penalty
@@ -17,21 +18,6 @@ from deepks.utils import is_xyz, load_sys_paths
 from deepks.utils import load_yaml, load_array
 from deepks.utils import get_sys_name, get_with_prefix
 
-DEFAULT_UNIT = "Bohr"
-
-DEFAULT_FNAMES = {"e_tot", "e_base", "dm_eig", "conv"}
-
-DEFAULT_HF_ARGS = {
-    "conv_tol": 1e-9
-}
-
-DEFAULT_SCF_ARGS = {
-    "conv_tol": 1e-7,
-    # "level_shift": 0.1,
-    # "diis_space": 20
-}
-
-MOL_ATTRIBUTE = {"charge", "basis", "unit"} # other molecule properties
 
 def solve_mol(mol, model, fields, labels=None,
               proj_basis=None, penalties=None, device=None,

@@ -13,8 +13,12 @@ from .shell import Shell
 from .job_status import JobStatus
 
 
-def _split_tasks(tasks,
-                 group_size):
+def _split_tasks(tasks, group_size):
+    """
+    Split tasks into chunks of size group_size.
+    If the number of tasks is not divisible by group_size,
+    the last chunk will contain the remaining tasks.
+    """
     ntasks = len(tasks)
     ngroups = ntasks // group_size
     if ngroups * group_size < ntasks:
@@ -94,7 +98,8 @@ class Dispatcher(object):
                  backward_common_files=[],
                  mark_failure = False,
                  outlog='log',
-                 errlog='err') :
+                 errlog='err',
+                 progress_callback=None) :
         # tasks is a list of dict [t1, t2, t3, ...]
         # with each element t = {
         #     'dir': job_dir, 
@@ -115,8 +120,21 @@ class Dispatcher(object):
             outlog,
             errlog
         )
+        # total = job_handler['job_record'].get_total_tasks()
+        # # 初始进度通知
+        # completed = job_handler['job_record'].get_completed_tasks()
+        # if progress_callback:
+        #     progress_callback(completed, total)
+        # else:
+        #     print(f"║║║  Progress: {completed}/{total} ({completed/total*100:.2f}%)")
+
         while not self.all_finished(job_handler, mark_failure) :
             time.sleep(60)
+            # completed = job_handler['job_record'].get_completed_tasks()
+            # if progress_callback:
+            #     progress_callback(completed, total)
+            # else:
+            #     print(f"║║║  Progress: {completed}/{total} ({completed/total*100:.2f}%)")
         # delete path map file when job finish
         # _pmap.delete()
 
@@ -186,13 +204,13 @@ class Dispatcher(object):
                                          para_deg=para_deg, para_res=para_res)
                     job_uuid = rjob['context'].job_uuid
                     # dlog.debug('assigned uuid %s for %s ' % (job_uuid, task_chunks_str[ii]))
-                    print('# new submission of %s for chunk %s' % (job_uuid, cur_hash))
+                    print('║║║ new submission of %s for chunk %s' % (job_uuid, cur_hash))
                 else:
                     rjob['batch'].submit(dirs, commands, res = resources, 
                                          outlog=outlog, errlog=errlog, 
                                          para_deg=para_deg, para_res=para_res,
                                          restart = True)
-                    print('# restart from old submission %s for chunk %s' % (job_uuid, cur_hash))
+                    print('║║║ restart from old submission %s for chunk %s' % (job_uuid, cur_hash))
                 # record job and its remote context
                 job_list.append(rjob)
                 ip = None
@@ -255,7 +273,7 @@ class Dispatcher(object):
                     job_record.increase_nfail(cur_hash)
                     if job_record.check_nfail(cur_hash) > 3:
                         raise RuntimeError('Job %s failed for more than 3 times' % job_uuid)
-                    print('# job %s terminated, submit again'% job_uuid)
+                    print('║║║ job %s terminated, submit again'% job_uuid)
                     # dlog.debug('try %s times for %s'% (job_record.check_nfail(cur_hash), job_uuid))
                     dirs = [task['dir'] for task in cur_chunk]
                     commands = [task['cmds'] for task in cur_chunk]
@@ -265,7 +283,7 @@ class Dispatcher(object):
                                          para_deg=para_deg, para_res=para_res,
                                          restart = True)                
                 elif status == JobStatus.finished :
-                    print('# job %s finished' % job_uuid)
+                    print('║║║ job %s finished' % job_uuid)
                     rjob['context'].download('.', backward_common_files)
                     for task in cur_chunk:
                         if mark_failure:
@@ -288,6 +306,12 @@ class JobRecord(object):
         self.path = os.path.abspath(path)
         self.fname = os.path.join(self.path, fname)
         self.task_chunks = task_chunks
+        self.chunk_info = []
+        for chunk in self.task_chunks:
+            chunk_hash = _hash_task_chunk(chunk)
+            task_count = len(chunk)
+            self.chunk_info.append((chunk_hash, task_count))
+        self.total_tasks = sum(tc for _, tc in self.chunk_info)
         if not os.path.exists(self.fname):
             self._new_record()
         else :
@@ -360,4 +384,16 @@ class JobRecord(object):
                 'task_chunk': [{"dir": t["dir"], 
                                 "cmds":t["cmds"]} for t in jj],
             }
+
+    def get_total_tasks(self):
+        """return total number of tasks"""
+        return self.total_tasks
+
+    def get_completed_tasks(self):
+        """return number of completed tasks"""
+        completed = 0
+        for chunk_hash, task_count in self.chunk_info:
+            if self.record.get(chunk_hash, {}).get('finished', True):
+                completed += task_count
+        return completed
 

@@ -7,8 +7,7 @@
 import time
 import numpy as np
 from pyscf import gto, scf
-
-BOHR = 0.52917721092
+from deepks.default import BOHR2ANG
 
 _NO_FORCE = False
 _NO_DM = False
@@ -179,7 +178,7 @@ if __name__ == "__main__":
         dump = os.path.join(dump_dir, os.path.splitext(os.path.basename(fn))[0])
         np.save(dump+".energy.npy", [etot])
         if grad is not None:
-            force = -grad / BOHR
+            force = -grad / BOHR2ANG
             np.save(dump+".force.npy", force)
         if rdm is not None:
             np.save(dump+".dm.npy", rdm)

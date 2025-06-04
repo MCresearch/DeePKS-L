@@ -5,6 +5,7 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
+from deepks.default import DEFAULT_SCF_ARGS_ABACUS
 from deepks.utils import copy_file, link_file
 from deepks.utils import load_yaml, save_yaml
 from deepks.utils import load_sys_paths
@@ -12,7 +13,6 @@ from deepks.utils import load_basis, save_basis
 from deepks.task.workflow import Sequence, Iteration
 from deepks.iterate.template import make_scf, make_train
 from deepks.iterate.template_abacus import make_scf_abacus  #caoyu add 2021-07-22 
-from deepks.iterate.template_abacus import DEFAULT_SCF_ARGS_ABACUS
 
 
 # args not specified here may cause error
@@ -100,7 +100,7 @@ def check_arg_dict(data, default, strict=True):
     allowed = {k:v for k,v in data.items() if k in default}
     outside = {k:v for k,v in data.items() if k not in default}
     if outside:
-        print(f"following ars are not in the default list: {list(outside.keys())}"
+        print(f"following args are not in the default list: {list(outside.keys())}"
               +"and would be discarded" if strict else "but kept", file=sys.stderr)
     if strict:
         return {**default, **allowed}

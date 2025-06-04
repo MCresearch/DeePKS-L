@@ -3,15 +3,13 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+from deepks.default import DEVICE
 # import psutil
 try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 
-# device: used in cal_v_delta, should be removed in the future
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#DEVICE = torch.device("cpu")
 
 def fit_elem_const(g_reader, test_reader=None, elem_table=None, ridge_alpha=0.):
     if elem_table is None:
@@ -79,17 +77,17 @@ def make_loss(cap=None, shrink=None, reduction="mean"):
     return loss_fn
 
 ## The following four functions are used only in Evaluator class
-def cal_v_delta(gev,gevdm,psialpha):
+def cal_v_delta(gev,gevdm,phialpha):
     # process = psutil.Process(os.getpid())
     # before_memory_usage = process.memory_info().rss
 
-    mmax=psialpha.size(-1)
+    mmax=phialpha.size(-1)
     lmax=int((mmax-1)/2)
-    n=int(psialpha.size(2)/(lmax+1))
+    n=int(phialpha.size(2)/(lmax+1))
 
-    n_batch=psialpha.size(0)
-    nks=psialpha.size(-3)
-    nlocal=psialpha.size(-2)
+    n_batch=phialpha.size(0)
+    nks=phialpha.size(-3)
+    nlocal=phialpha.size(-2)
     v_delta=torch.zeros([n_batch,nks,nlocal,nlocal],dtype=gev.dtype,device=DEVICE)
     for l in range(lmax+1):
         gevdm_l=gevdm[...,n*l:n*(l+1),:2*l+1,:2*l+1,:2*l+1]
@@ -102,18 +100,18 @@ def cal_v_delta(gev,gevdm,psialpha):
 
         temp_1=torch.einsum("...v,...vmn->...mn", gev_l, gevdm_l)
         # print(temp_1.shape)
-        del gev_l,gevdm_l
+        del gev_l, gevdm_l
 
-        psialpha_l=psialpha[...,n*l:n*(l+1),:,:,:2*l+1]
-        # print(psialpha_l.shape)
-        temp_2=torch.einsum("...mn,...kxn->...kxm",temp_1,psialpha_l)
+        phialpha_l=phialpha[...,n*l:n*(l+1),:,:,:2*l+1]
+        # print(phialpha_l.shape)
+        temp_2 = torch.einsum("...mn,...kxn->...kxm",temp_1, phialpha_l)
         # print(temp_2.shape)
         del temp_1
 
-        vdp_nl=torch.einsum("...alkxm,...alkym->...kxy",temp_2,psialpha_l)
+        vdp_nl=torch.einsum("...alkxm,...alkym->...kxy",temp_2,phialpha_l)
         #vdp_nl=torch.einsum("...alkxy->kxy",temp_3)
         # print(vdp_nl.shape)
-        del temp_2,psialpha_l
+        del temp_2, phialpha_l
 
         v_delta+=vdp_nl
         # print(v_delta.shape)
@@ -126,30 +124,30 @@ def cal_v_delta(gev,gevdm,psialpha):
     # print("v_delta.shape",v_delta.shape)
     return v_delta
 
-def get_density_matrix(psi,density_m_occ):
-    psi_occ=psi[...,:density_m_occ]
-    batch_size,nks,nlocal,nocc=psi_occ.size()
-    psi_occ=psi_occ.view(batch_size*nks,nlocal,nocc)
+def get_density_matrix(phi,density_m_occ):
+    phi_occ=phi[...,:density_m_occ]
+    batch_size,nks,nlocal,nocc=phi_occ.size()
+    phi_occ=phi_occ.view(batch_size*nks,nlocal,nocc)
 
-    #batch matrix multiplication, psi_occ@psi_occ.T
-    density_m = torch.bmm(psi_occ, psi_occ.transpose(-1,-2))
+    #batch matrix multiplication, phi_occ@phi_occ.T
+    density_m = torch.bmm(phi_occ, phi_occ.transpose(-1,-2))
 
     #reshape to batch_size,nks,nlocal,nlocal
     density_m=density_m.view(batch_size,nks,nlocal,nlocal)
-    psi_occ=psi_occ.view(batch_size,nks,nlocal,nocc)
+    phi_occ=phi_occ.view(batch_size,nks,nlocal,nocc)
 
     return density_m
 
-# use every psi_pred and -1*psi_pred to compare with corresponding psi_label, given that psi can have coeficient freedom of +-1 (for gamma only)
-def cal_psi_loss(psi_pred,psi_label,psi_occ):
-    occ_psi_pred=psi_pred[...,:psi_occ].clone()
-    occ_psi_label=psi_label[...,:psi_occ].clone()
-    # print("occ_psi.shape",occ_psi_pred.shape,occ_psi_label.shape)
+# use every phi_pred and -1*phi_pred to compare with corresponding phi_label, given that phi can have coeficient freedom of +-1 (for gamma only)
+def cal_phi_loss(phi_pred,phi_label,phi_occ):
+    occ_phi_pred=phi_pred[...,:phi_occ].clone()
+    occ_phi_label=phi_label[...,:phi_occ].clone()
+    # print("occ_phi.shape",occ_phi_pred.shape,occ_phi_label.shape)
     # just mean reduction
-    loss_1=((occ_psi_label-occ_psi_pred)**2).mean(-2) # mean for every component of each psi
-    loss_2=((occ_psi_label-(-1)*occ_psi_pred)**2).mean(-2)
+    loss_1=((occ_phi_label-occ_phi_pred)**2).mean(-2) # mean for every component of each phi
+    loss_2=((occ_phi_label-(-1)*occ_phi_pred)**2).mean(-2)
     loss=torch.stack([loss_1,loss_2],dim=-1)
-    loss=loss.min(dim=-1)[0] # pick min for every psi
+    loss=loss.min(dim=-1)[0] # pick min for every phi
     loss=loss.mean()
     #print("loss.shape:",loss.shape)
     return loss

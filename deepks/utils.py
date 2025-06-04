@@ -6,18 +6,7 @@ from ruamel.yaml import YAML
 import numpy as np
 from collections.abc import Mapping
 from itertools import chain
-
-
-QCDIR = os.path.dirname(os.path.realpath(__file__))
-
-
-# below are basis set settings
-
-_zeta = 1.5**np.array([17,13,10,7,5,3,2,1,0,-1,-2,-3])
-_coef = np.diag(np.ones(_zeta.size)) - np.diag(np.ones(_zeta.size-1), k=1)
-_table = np.concatenate([_zeta.reshape(-1,1), _coef], axis=1)
-DEFAULT_BASIS = [[0, *_table.tolist()], [1, *_table.tolist()], [2, *_table.tolist()]]
-DEFAULT_SYMB = "Ne"
+from deepks.default import DEFAULT_BASIS, DEFAULT_SYMB
 
 def load_basis(basis):
     if basis is None:

@@ -8,21 +8,16 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
+from deepks.default import DEVICE
 from deepks.model.model import CorrNet
 from deepks.model.reader import GroupReader
 from deepks.utils import load_dirs, load_elem_table
 from deepks.model.utils import preprocess, fit_elem_const, make_loss
 from deepks.model.evaluator import Evaluator, NatomLossList
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#DEVICE = torch.device("cpu")
-
-# equiv to nn.MSELoss()
-L2LOSS = make_loss()
-
 def train(model, g_reader, n_epoch=1000, test_reader=None, *,
-          energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., psi_factor=0.,psi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
-          energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, psi_loss=None, band_loss=None, density_m_loss=None, grad_penalty=0.,
+          energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
+          energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, phi_loss=None, band_loss=None, density_m_loss=None, grad_penalty=0.,
           energy_per_atom=0, vd_divide_by_nlocal=False,
           start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None, decay_rate_iter=None,
           weight_decay=0.,  fix_embedding=False,
@@ -56,18 +51,18 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     evaluator = Evaluator(energy_factor=energy_factor, force_factor=force_factor, 
                           stress_factor=stress_factor, orbital_factor=orbital_factor,
                           v_delta_factor=v_delta_factor,
-                          psi_factor=psi_factor, psi_occ=psi_occ,
+                          phi_factor=phi_factor, phi_occ=phi_occ,
                           band_factor=band_factor, band_occ=band_occ,
                           density_m_factor=density_m_factor, density_m_occ=density_m_occ,
                           energy_lossfn=energy_loss, force_lossfn=force_loss,
                           stress_lossfn=stress_loss, orbital_lossfn=orbital_loss,
-                          v_delta_lossfn=v_delta_loss,psi_lossfn=psi_loss,
+                          v_delta_lossfn=v_delta_loss,phi_lossfn=phi_loss,
                           band_lossfn=band_loss, density_m_lossfn=density_m_loss,
                           density_factor=density_factor, grad_penalty=grad_penalty, 
                           energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal)
     if not display_detail_test:
         # make test evaluator that only returns l2loss of energy
-        test_eval = Evaluator(energy_factor=1., energy_lossfn=L2LOSS, 
+        test_eval = Evaluator(energy_factor=1., energy_lossfn=make_loss(), # default l2 loss 
                             force_factor=0., density_factor=0., grad_penalty=0.,energy_per_atom=energy_per_atom)
     else:
         # make test evaluator that returns loss of every concerned items, but all with factor==1
@@ -75,12 +70,12 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
         test_eval = Evaluator(energy_factor=to_one(energy_factor), force_factor=to_one(force_factor), 
                             stress_factor=to_one(stress_factor), orbital_factor=to_one(orbital_factor),
                             v_delta_factor=to_one(v_delta_factor),
-                            psi_factor=to_one(psi_factor), psi_occ=psi_occ,
+                            phi_factor=to_one(phi_factor), phi_occ=phi_occ,
                             band_factor=to_one(band_factor), band_occ=band_occ,
                             density_m_factor=to_one(density_m_factor), density_m_occ=density_m_occ,
                             energy_lossfn=energy_loss, force_lossfn=force_loss,
                             stress_lossfn=stress_loss, orbital_lossfn=orbital_loss,
-                            v_delta_lossfn=v_delta_loss,psi_lossfn=psi_loss,
+                            v_delta_lossfn=v_delta_loss,phi_lossfn=phi_loss,
                             band_lossfn=band_loss, density_m_lossfn=density_m_loss,
                             density_factor=to_one(density_factor), grad_penalty=grad_penalty,
                             energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal)
