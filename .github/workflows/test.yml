@@ -1,0 +1,52 @@
+name: Integration Test and Unit Test
+
+on:
+  pull_request:
+    branches: 
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: PyTest
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/deepmodeling/abacus-gnu
+    steps:
+      - name: Checkout Github
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+            python-version: 3.12
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      # - name: Unit Test with PyTest
+      #   run: |
+      #     pytest tests/unittests/ -s
+
+      - name: Integration Test with PyTest
+        run: |
+          pytest tests/integral/
+
+      - name: Archive Pytest test report
+        uses: actions/upload-artifact@v3
+        with:
+          name: SuperTest-test-report
+          path: report
+            
+      - name: Upload Pytest report to GitHub
+        uses: actions/upload-artifact@v3
+        with:
+          name: Pytest-test-report
+          path: report
