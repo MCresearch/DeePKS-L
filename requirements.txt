@@ -1,6 +1,12 @@
-numpy
+numpy==1.26.0
+scipy
+h5py
 paramiko
-ruamel.yaml
+ruamel.yaml==0.17.21
 torch
-pyscf
-dpdispatcher
+mpich
+abacus
+pytest
+psutil
+# pyscf
+# dpdispatcher
