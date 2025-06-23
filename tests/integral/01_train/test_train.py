@@ -1,10 +1,13 @@
+import os
 import pytest
 import contextlib
 from deepks.utils import load_yaml
 from deepks.model.train import main as train_main
 
 def run_train():
-    argdict = load_yaml("./train_input.yaml")
+    root_dir = os.environ.get("ROOT_DIR", ".")
+    yaml_path = os.path.join(root_dir, "tests/integral/01_train/train_input.yaml")
+    argdict = load_yaml(yaml_path)
     with open("log.train", "w") as f_out, open("err", "w") as f_err:
         with contextlib.redirect_stdout(f_out), contextlib.redirect_stderr(f_err):
             train_main(**argdict)
