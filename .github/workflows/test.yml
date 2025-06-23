@@ -33,9 +33,9 @@ jobs:
       #   run: |
       #     pytest tests/unittests/ -s
 
-      - name: Integration Test with PyTest
+      - name: Integration Test withs PyTest
       - env:
-        ROOT_DIR: ${{ github.workspace }}
+          ROOT_DIR: ${{ github.workspace }}
         run: |
           pytest tests/integral/
 
