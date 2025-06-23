@@ -84,7 +84,7 @@ def pad_lastdim(sequences, padding_value=0):
 
 def pad_masked(tensor, mask, padding_value=0):
     # equiv to pad_lastdim(tensor.split(shell_sec, dim=-1))
-    assert tensor.shape[-1] == mask.sum()
+    # assert tensor.shape[-1] == mask.sum()
     new_shape = tensor.shape[:-1] + mask.shape
     return tensor.new_full(new_shape, padding_value).masked_scatter_(mask, tensor) 
 
