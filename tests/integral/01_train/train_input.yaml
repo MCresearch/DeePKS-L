@@ -1,6 +1,6 @@
 seed: 12345678
 train_paths:
-  - "./tests/integral/01_train/data_train/"
+  - "../data/data_train/"
 model_args:
   actv_fn: mygelu
   embedding: {embd_sizes: null, init_beta: 5, type: thermal}

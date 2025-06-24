@@ -1,0 +1,127 @@
+# running machine settings
+scf_machine:
+  group_size: 16
+  resources:
+    task_per_node: 1
+  sub_size: 1
+  dispatcher: 
+    context: local
+    batch: shell
+
+train_machine: 
+  dispatcher: 
+    context: local
+    batch: shell
+    remote_profile: null
+  python: "python" 
+
+cleanup: false
+strict: true
+
+# number of iterations to do
+n_iter: 1
+  
+# directory setting
+workdir: "."
+share_folder: "share"
+scf_input: false
+
+# train settings
+train_input:
+  seed: 12345678
+  data_args: 
+    batch_size: 2
+    group_batch: 1
+    extra_label: true
+    conv_filter: true
+    conv_name: conv
+  preprocess_args:
+    preshift: false
+    prescale: false
+    prefit_ridge: 1e1
+    prefit_trainable: false
+  train_args: 
+    decay_rate: 0.5
+    decay_steps: 1
+    display_epoch: 1
+    force_factor: 1
+    n_epoch: 2
+    start_lr: 0.0001
+
+# init settings, these are for DeePHF task
+init_model: false
+init_scf: True
+init_train:
+  seed: 12345678
+  proj_basis: 
+    [[0,[0,0,0]],
+    [1,[0,0,0]],
+    [2,[0,0,0]]]
+  model_args:
+    hidden_sizes: [100, 100, 100]
+    output_scale: 100
+    use_resnet: true
+    actv_fn: mygelu
+    embedding: {embd_sizes: null, init_beta: 5, type: thermal}
+  data_args: 
+    batch_size: 2
+    group_batch: 1
+  preprocess_args:
+    preshift: true
+    prescale: false
+    prefit_ridge: 1e1
+    prefit_trainable: false
+  train_args: 
+    decay_rate: 0.96
+    decay_steps: 1
+    display_epoch: 1
+    n_epoch: 2
+    start_lr: 0.0003
+
+# training and testing systems
+systems_train:
+  - ../../systems/data_train 
+systems_test:
+  - ../../systems/data_test
+
+# abacus settings, these are for SCF task
+use_abacus: true
+scf_abacus:
+  #INPUT args
+  ntype: 2
+  ecutwfc: 100
+  scf_thr: 1e-7
+  scf_nmax: 100
+  dft_functional: "pbe"
+  gamma_only: 1
+  cal_force: 1
+  #STRU args
+  orb_files:
+    - "../../data/Si_gga_7au_100Ry_2s2p1d.orb"
+  pp_files: 
+    - "../../data/Si_ONCV_PBE-1.0.upf"
+  proj_file: 
+    - "../../data/jle.orb"
+  lattice_constant: 1.8897261255
+  coord_type: "Cartesian"
+  #cmd args
+  run_cmd : "mpirun"
+  abacus_path: "abacus"
+init_scf_abacus:
+  orb_files: 
+    - "../../data/Si_gga_7au_100Ry_2s2p1d.orb"
+  pp_files:
+    - "../../data/Si_ONCV_PBE-1.0.upf"
+  proj_file: 
+    - "../../data/jle.orb"
+  ntype: 2
+  ecutwfc: 100
+  scf_thr: 1e-7
+  scf_nmax: 100
+  dft_functional: "pbe"
+  gamma_only: 1
+  cal_force: 1
+  lattice_constant: 1.8897261255
+  coord_type: "Cartesian"
+  run_cmd : "mpirun"
+  abacus_path: "abacus"
