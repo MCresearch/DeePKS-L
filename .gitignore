@@ -56,5 +56,8 @@ venv.bak/
 
 # examples
 ABACUS/
-# temporary
+
+# tests
 tests/ 
+iter*
+model.pt*
