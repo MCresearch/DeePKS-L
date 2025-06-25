@@ -39,7 +39,7 @@ def test_NatomLossList(capsys):
     
 def test_Evaluator(capsys):
     evaluator = Evaluator(energy_factor=1., force_factor=1., stress_factor=1., 
-                          orbital_factor=1., v_delta_factor=1., v_delta_r_factor=1.,
+                          orbital_factor=1., v_delta_factor=1.,
                           phi_factor=1., phi_occ={3:4, 6:8}, band_factor=1.,band_occ={3:8, 6:16},
                           density_m_factor=1.,density_m_occ=0, density_factor=1.,
                           grad_penalty=1., energy_per_atom=0, vd_divide_by_nlocal=True)
