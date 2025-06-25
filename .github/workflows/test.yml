@@ -39,14 +39,14 @@ jobs:
         run: |
           pytest tests/integral/
 
-      - name: Archive Pytest test report
-        uses: actions/upload-artifact@v4
-        with:
-          name: SuperTest-test-report
-          path: report
+      # - name: Archive Pytest test report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: SuperTest-test-report
+      #     path: report
             
-      - name: Upload Pytest report to GitHub
-        uses: actions/upload-artifact@v4
-        with:
-          name: Pytest-test-report
-          path: report
+      # - name: Upload Pytest report to GitHub
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: Pytest-test-report
+      #     path: report
