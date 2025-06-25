@@ -10,7 +10,6 @@ basis = [[0,[0,0,0]], # s
          [2,[0,0,0]]] # d
 shell_sec = get_shell_sec(basis)
 elem_table = ([1, 2, 3, 4, 5, 6], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6])  # Example element table
-torch.manual_seed(12345678)  # For reproducibility
 
 def test_get_shell_sec():
     assert shell_sec == [1,1,3,3,5,5]

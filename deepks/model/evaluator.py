@@ -264,6 +264,11 @@ class NatomLossList:
             self.natom_loss_list[natom]=[[0. for _ in range(self.n_loss_term)]]
     
     def add_loss(self,natom,loss):
+        assert len(loss) > 0, "loss should not be empty"
+        if not self.n_loss_term:
+            self.n_loss_term=len(loss)
+        assert len(loss) == self.n_loss_term, \
+            f"loss length are different for newly added natom {natom}, expected {self.n_loss_term}, got {len(loss)}"
         if natom not in self.natom_loss_list.keys():
             self.natom_loss_list[natom]=[]
         self.natom_loss_list[natom].append([loss_term.item() for loss_term in loss])
