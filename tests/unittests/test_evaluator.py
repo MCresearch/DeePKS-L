@@ -38,13 +38,64 @@ def test_NatomLossList(capsys):
     assert line[-4:] == ['-1.6568e+00', '1.0939e-01', '-5.4033e-01', '4.7124e-01']
     
 def test_Evaluator(capsys):
-    evaluator = Evaluator(energy_factor=1., force_factor=1., stress_factor=1., 
-                          orbital_factor=1., v_delta_factor=1.,
-                          phi_factor=1., phi_occ={3:4, 6:8}, band_factor=1.,band_occ={3:8, 6:16},
-                          density_m_factor=1.,density_m_occ=0, density_factor=1.,
-                          grad_penalty=1., energy_per_atom=0, vd_divide_by_nlocal=True)
     # test loss calculation
-    # TO BE IMPLEMENTED
+    # make sample loss function and model
+    def loss_fn(input, target):
+        return torch.mean((input - target) ** 2)
+    class SimpleModel(torch.nn.Module):
+        def __init__(self, input_dim=12, output_dim=1):
+            super(SimpleModel, self).__init__()
+            self.fc = torch.nn.Linear(input_dim, output_dim)
+        def forward(self, x):
+            x = x.view(x.size(0), -1)
+            return self.fc(x)
+    # make sample data
+    batch_size = 2
+    natom, ndesc, nks, norb, nlocal = 3, 4, 2, 5, 6
+    sample = {
+        'lb_e': torch.randn(batch_size, 1), # model output
+        'eig': torch.randn(batch_size, natom, ndesc), # model input
+        # for energy gradient
+        'eg0': torch.randn(batch_size, 1),
+        'gveg': torch.randn(batch_size, natom, ndesc, 1),
+        # for force
+        'lb_f': torch.randn(batch_size, natom, 3),
+        'gvx': torch.randn(batch_size, natom, 3, natom, ndesc),
+        # for stress
+        'lb_s': torch.randn(batch_size, 6),
+        'gvepsl': torch.randn(batch_size, 6, natom, ndesc),
+        # for orbital
+        'lb_o': torch.randn(batch_size, nks, norb),
+        'op': torch.randn(batch_size, nks*norb, natom, ndesc),
+        # for v_delta
+        'lb_vd': torch.randn(batch_size, nks, nlocal, nlocal),
+        'vdp': torch.randn(batch_size, nks, nlocal, nlocal, natom, ndesc),
+        # for phi and band
+        'lb_phi': torch.randn(batch_size, nks, nlocal, nlocal),
+        'lb_band': torch.randn(batch_size, nks, nlocal),
+        'h_base': torch.randn(batch_size, nks, nlocal, nlocal),
+        'L_inv': torch.randn(batch_size, nks, nlocal, nlocal),
+        # for density
+        'gldv': torch.randn(batch_size, natom, ndesc),
+    }
+    evaluator = Evaluator(energy_factor=1., energy_lossfn=loss_fn,
+                          force_factor=1., force_lossfn=loss_fn,
+                          stress_factor=1., stress_lossfn=loss_fn,
+                          orbital_factor=1., orbital_lossfn=loss_fn,
+                          v_delta_factor=1., v_delta_lossfn=loss_fn,
+                          phi_factor=1., phi_occ={natom:4}, phi_lossfn=loss_fn,
+                          band_factor=1., band_occ={natom:5}, band_lossfn=loss_fn,
+                          density_m_factor=1., density_m_occ={natom:6}, density_m_lossfn=loss_fn,
+                          density_factor=1., grad_penalty=1.,
+                          energy_per_atom=0, vd_divide_by_nlocal=True)
+    model = SimpleModel(input_dim=natom*ndesc, output_dim=1)
+    loss_list = evaluator(model, sample)
+    loss = torch.tensor(loss_list)
+    ref = torch.tensor([9.7316e-02, 7.2783e-01, 1.5804e+00, 3.4535e-01, 1.1475e+00,
+                        6.9864e+00, 1.5606e+00, 1.7065e+02, 9.6672e+01, 1.0310e-01,
+                        2.7987e+02])
+    assert len(loss_list) == 11
+    assert torch.allclose(loss, ref, atol=1e-4)  # total loss
     # test print_head
     data_keys = ['eg0', 'lb_f', 'lb_s', 'lb_o', 'lb_vd', 'lb_phi', 'lb_band', 'gldv']
     evaluator.print_head("test", data_keys)

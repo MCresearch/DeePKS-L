@@ -215,8 +215,9 @@ class Evaluator:
             # density loss with fix head grad
             if self.d_factor > 0 and "gldv" in sample:
                 gldv = sample["gldv"]
-                tot_loss = tot_loss + self.d_factor * (gldv * gev).mean(0).sum()
-                loss.append(self.d_factor * (gldv * gev).mean(0).sum())
+                d_loss = self.d_factor * torch.abs((gldv * gev).mean(0).sum())
+                tot_loss = tot_loss + d_loss
+                loss.append(d_loss)
         loss.append(tot_loss)
         return loss
     
