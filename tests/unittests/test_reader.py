@@ -265,7 +265,6 @@ def test_GroupReader(capsys):
                                              -0.09742901, -0.28587458, 0.55784453, 0.19558913,
                                              -0.28587458, -0.09742901, 0.55784453]), atol=1e-8)
     gr.subtract_elem_const(elem_const)
-    print(gr.readers[0].data_ec)
     e_diff = np.dot(gr.group_dict[(2, None)][0].collect_elems(elem_list), elem_const.reshape(-1, 1))
     assert (gr.readers[0].data_ec == l_e_delta[0] - e_diff).all()
     assert (gr.readers[0].t_data["lb_e"] == l_e_delta[0] - e_diff).all()
