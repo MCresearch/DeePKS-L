@@ -45,11 +45,11 @@ class Reader(object):
         self.s_path = self.check_exist(s_name+".npy")
         self.o_path = self.check_exist(o_name+".npy")
         self.h_path = self.check_exist(h_name+".npy")
-        self.h_base_path=self.check_exist(h_base_name+".npy")
-        self.h_ref_path=self.check_exist(h_ref_name+".npy")
-        self.overlap_path=self.check_exist(overlap_name+".npy")
-        self.phialpha_path=self.check_exist(phialpha_name+".npy")
-        self.gevdm_path=self.check_exist(gevdm_name+".npy")
+        self.h_base_path = self.check_exist(h_base_name+".npy")
+        self.h_ref_path = self.check_exist(h_ref_name+".npy")
+        self.overlap_path = self.check_exist(overlap_name+".npy")
+        self.phialpha_path = self.check_exist(phialpha_name+".npy")
+        self.gevdm_path = self.check_exist(gevdm_name+".npy")
         self.d_path = self.check_exist(d_name+".npy")
         self.gvx_path = self.check_exist(gvx_name+".npy")
         self.gvepsl_path = self.check_exist(gvepsl_name+".npy")
@@ -60,7 +60,7 @@ class Reader(object):
         self.gldv_path = self.check_exist(gldv_name+".npy")
         self.c_path = self.check_exist(conv_name+".npy")
         self.a_path = self.check_exist(atom_name+".npy")
-        self.read_overlap=read_overlap
+        self.read_overlap = read_overlap
         # load data
         self.load_meta()
         self.prepare()
@@ -76,7 +76,7 @@ class Reader(object):
 
     def load_meta(self):
         try:
-            sys_meta = np.loadtxt(self.check_exist('system.raw'), dtype = int).reshape([-1])
+            sys_meta = np.loadtxt(self.check_exist('system.raw'), converters = float).astype(int).reshape([-1])
             self.natm = sys_meta[0]
             self.nproj = sys_meta[-1]
         except:
@@ -175,24 +175,26 @@ class Reader(object):
                 #         .reshape(raw_nframes, -1, self.nlocal, self.nlocal, self.natm, self.ndesc)[conv].clone()
             
             # for phi labels and band labels
-            self.t_data["h_base"]=torch.tensor(
-                np.load(self.h_base_path)\
-                  .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]) #-1 for nks
-            h_ref=torch.tensor(np.load(self.h_ref_path))
-            if self.read_overlap is True and self.overlap_path is not None:
-                #print("use generalized eigh")
-                overlap=torch.tensor(np.load(self.overlap_path))
-                L=torch.linalg.cholesky(overlap)
-                L_inv=torch.linalg.inv(L)
-                self.t_data["L_inv"]=L_inv\
-                        .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
-                band_ref,phi_ref=generalized_eigh(h_ref,L_inv)    
-            else:
-                band_ref,phi_ref=torch.linalg.eigh(h_ref,UPLO='U') # U for upper triangle
-            self.t_data["lb_band"]=band_ref\
-                  .reshape(raw_nframes, -1, self.nlocal)[conv].clone()             
-            self.t_data["lb_phi"]=phi_ref\
-                  .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()      
+            if self.h_base_path is not None:
+                self.t_data["h_base"]=torch.tensor(
+                    np.load(self.h_base_path)\
+                    .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]) #-1 for nks
+            if self.h_ref_path is not None:
+                h_ref=torch.tensor(np.load(self.h_ref_path))
+                if self.read_overlap is True and self.overlap_path is not None:
+                    #print("use generalized eigh")
+                    overlap=torch.tensor(np.load(self.overlap_path))
+                    L=torch.linalg.cholesky(overlap)
+                    L_inv=torch.linalg.inv(L)
+                    self.t_data["L_inv"]=L_inv\
+                            .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
+                    band_ref,phi_ref=generalized_eigh(h_ref,L_inv)    
+                else:
+                    band_ref,phi_ref=torch.linalg.eigh(h_ref,UPLO='U') # U for upper triangle
+                self.t_data["lb_band"]=band_ref\
+                    .reshape(raw_nframes, -1, self.nlocal)[conv].clone()             
+                self.t_data["lb_phi"]=phi_ref\
+                    .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()      
         # Energy gradient
         if self.eg_path is not None and self.gveg_path is not None:
             self.t_data['eg0'] = torch.tensor(
@@ -208,11 +210,14 @@ class Reader(object):
                 np.load(self.gldv_path)\
                   .reshape(raw_nframes, self.natm, self.ndesc)[conv])
 
-    def sample_train(self):
+    def sample_train(self, index_list=None):
         if self.batch_size == self.nframes == 1:
             return self.sample_all()
         if len(self.idx_queue) < self.batch_size:
-            self.idx_queue = np.random.choice(self.nframes, self.nframes, replace=False)
+            if index_list is not None:
+                self.idx_queue = np.array(index_list)
+            else:
+                self.idx_queue = np.random.choice(self.nframes, self.nframes, replace=False)
         sample_idx = self.idx_queue[:self.batch_size]
         self.idx_queue = self.idx_queue[self.batch_size:]
         return {k: v[sample_idx] for k, v in self.t_data.items()}
@@ -269,13 +274,10 @@ class GroupReader(object) :
         self.path_list = path_list
         self.batch_size = batch_size
         # init system readers
-        Reader_class = (Reader if extra_label 
-            and isinstance(kwargs.get('d_name', "dm_eig"), str) 
-            else Reader) # Seems useless
         self.readers = []
         self.nframes = []
         for ipath in self.path_list :
-            ireader = Reader_class(ipath, batch_size, **kwargs)
+            ireader = Reader(ipath, batch_size, **kwargs)
             if ireader.get_nframes() == 0:
                 print('# ignore empty dataset:', ipath, file=sys.stderr)
                 continue
@@ -285,7 +287,7 @@ class GroupReader(object) :
             raise RuntimeError("No system is avaliable")
         self.nsystems = len(self.readers)
         data_keys = self.readers[0].sample_all().keys()
-        print(f"# load {self.nsystems} systems with fields {set(data_keys)}")
+        print(f"# load {self.nsystems} systems with fields {list(dict.fromkeys(data_keys))}")
         # probability of each system
         self.ndesc = self.readers[0].ndesc
         self.sys_prob = [float(ii) for ii in self.nframes] / np.sum(self.nframes)
@@ -324,11 +326,10 @@ class GroupReader(object) :
     def sample_idx(self) :
         return np.random.choice(np.arange(self.nsystems), p=self.sys_prob)
         
-    def sample_train(self, idx=None) :
+    def sample_train(self, idx=None, index_list=None):
         if idx is None:
             idx = self.sample_idx()
-        return \
-            self.readers[idx].sample_train()
+        return self.readers[idx].sample_train(index_list=index_list)
 
     def sample_train_group(self):
         cidx = np.random.choice(len(self.group_prob), p=list(self.group_prob.values()))
@@ -452,7 +453,7 @@ class SimpleReader(object):
 
     def load_meta(self):
         try:
-            sys_meta = np.loadtxt(os.path.join(self.data_path,'system.raw'), dtype = int).reshape([-1])
+            sys_meta = np.loadtxt(os.path.join(self.data_path,'system.raw'), converters = float).astype(int).reshape([-1])
             self.natm = sys_meta[0]
             self.nproj = sys_meta[-1]
         except:
@@ -479,8 +480,6 @@ class SimpleReader(object):
         self.data_ec = data_ec[conv]
         self.data_dm = data_dm[conv]
         self.nframes = conv.sum()
-        self.ndesc = self.data_dm.shape[-1]
-        # print(np.shape(self.inputs_train))
         if self.nframes < self.batch_size:
             self.batch_size = self.nframes
             print('#', self.data_path, f"reset batch size to {self.batch_size}", file=sys.stderr)
@@ -515,35 +514,3 @@ class SimpleReader(object):
 
     def get_nframes(self) :
         return self.nframes
-    
-    def collect_elems(self, elem_list):
-        if "elem_list" in self.atom_info:
-            assert list(elem_list) == list(self.atom_info["elem_list"])
-            return self.atom_info["nelem"]
-        elem_to_idx = np.zeros(200, dtype=int) + 200
-        for ii, ee in enumerate(elem_list):
-            elem_to_idx[ee] = ii
-        idxs = elem_to_idx[self.atom_info["elems"]]
-        nelem = np.zeros((self.nframes, len(elem_list)), int)
-        np.add.at(nelem, (np.arange(nelem.shape[0]).reshape(-1,1), idxs), 1)
-        self.atom_info["nelem"] = nelem
-        self.atom_info["elem_list"] = elem_list
-        return nelem
-    
-    def subtract_elem_const(self, elem_const):
-        # assert "elem_const" not in self.atom_info, \
-        #     "subtract_elem_const has been done. The method should not be executed twice."
-        econst = (self.atom_info["nelem"] @ elem_const).reshape(self.nframes, 1)
-        self.data_ec -= econst
-        self.t_data["lb_e"] -= econst
-        self.atom_info["elem_const"] = elem_const
-    
-    def revert_elem_const(self):
-        # assert "elem_const" not in self.atom_info, \
-        #     "subtract_elem_const has been done. The method should not be executed twice."
-        if "elem_const" not in self.atom_info:
-            return
-        elem_const = self.atom_info.pop("elem_const")
-        econst = (self.atom_info["nelem"] @ elem_const).reshape(self.nframes, 1)
-        self.data_ec += econst
-        self.t_data["lb_e"] += econst
