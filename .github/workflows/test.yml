@@ -34,7 +34,6 @@ jobs:
         shell: bash -l {0}
         run: |
           pytest tests/unittests/ -s
-          abacus -v
 
       - name: Integration Test withs PyTest
         shell: bash -l {0}
