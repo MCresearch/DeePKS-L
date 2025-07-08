@@ -360,4 +360,4 @@ class CorrNet(nn.Module):
             return torch.jit.load(filename)
         except RuntimeError:
             checkpoint = torch.load(filename, map_location="cpu")
-            return CorrNet.load_dict(checkpoint, strict=strict)
+            return CorrNet.load_dict(checkpoint, strict=strict, weights_only=False)
