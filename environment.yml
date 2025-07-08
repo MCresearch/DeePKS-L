@@ -10,7 +10,7 @@ dependencies:
   - h5py
   - paramiko
   - ruamel.yaml=0.17.21
-  - torch
+  - pytorch
   - mpich
   - abacus=3.8.0
   - pytest
