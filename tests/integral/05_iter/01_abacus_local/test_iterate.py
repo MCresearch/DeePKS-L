@@ -15,10 +15,10 @@ def run_iter():
         with contextlib.redirect_stdout(f_out), contextlib.redirect_stderr(f_err):
             iter_main(**argdict)
 
-# def test_result():
-#     run_iter()
-#     with open(log_dir, "r") as f:
-#         lines = f.readlines()
-#         final_line = lines[-1].split()
-#         assert final_line[-1] == "(1,)"
-#         assert final_line[-3] == "FINISH"
+def test_result():
+    run_iter()
+    with open(log_dir, "r") as f:
+        lines = f.readlines()
+        final_line = lines[-1].split()
+        assert final_line[-1] == "(1,)"
+        assert final_line[-3] == "FINISH"

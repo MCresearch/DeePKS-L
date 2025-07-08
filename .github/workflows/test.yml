@@ -37,6 +37,7 @@ jobs:
 
       - name: Unit Test with PyTest
         run: |
+          conda activate test-env
           pytest tests/unittests/ -s
 
       - name: Integration Test withs PyTest
