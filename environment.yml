@@ -12,7 +12,7 @@ dependencies:
   - ruamel.yaml=0.17.21
   - pytorch
   - mpich
-  - abacus=3.8.0
+  - abacus=3.9.0.2
   - pytest
   - psutil
   # - pyscf

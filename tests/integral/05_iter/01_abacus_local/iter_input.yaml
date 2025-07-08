@@ -94,7 +94,6 @@ scf_abacus:
   scf_nmax: 100
   dft_functional: "pbe"
   gamma_only: 1
-  cal_force: 1
   #STRU args
   orb_files:
     - "../../data/Si_gga_7au_100Ry_2s2p1d.orb"
@@ -120,7 +119,6 @@ init_scf_abacus:
   scf_nmax: 100
   dft_functional: "pbe"
   gamma_only: 1
-  cal_force: 1
   lattice_constant: 1.8897261255
   coord_type: "Cartesian"
   run_cmd : "mpirun"
