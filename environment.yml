@@ -1,0 +1,22 @@
+name: test-env
+channels:
+  - deepmodeling
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy=1.26.0
+  - scipy
+  - h5py
+  - paramiko
+  - ruamel.yaml=0.17.21
+  - torch
+  - mpich
+  - abacus=3.8.0
+  - pytest
+  - psutil
+  # - pyscf
+  # - dpdispatcher
+  - pip
+  - pip:
+      - -e .
