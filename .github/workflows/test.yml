@@ -30,17 +30,13 @@ jobs:
           environment-file: environment.yml
           use-mamba: true
 
-      # - name: Install pip-only dependencies
-      #   shell: bash -l {0}
-      #   run: |
-      #     pip install -e .
-
       - name: Unit Test with PyTest
+        shell: bash -l {0}
         run: |
-          conda activate test-env
           pytest tests/unittests/ -s
 
       - name: Integration Test withs PyTest
+        shell: bash -l {0}
         env:
           ROOT_DIR: ${{ github.workspace }}
         run: |
