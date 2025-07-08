@@ -359,5 +359,5 @@ class CorrNet(nn.Module):
         try:
             return torch.jit.load(filename)
         except RuntimeError:
-            checkpoint = torch.load(filename, map_location="cpu")
-            return CorrNet.load_dict(checkpoint, strict=strict, weights_only=False)
+            checkpoint = torch.load(filename, map_location="cpu", weights_only=False)
+            return CorrNet.load_dict(checkpoint, strict=strict)
