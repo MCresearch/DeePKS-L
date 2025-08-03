@@ -64,7 +64,8 @@ def gather_system_data(nframes,data_dir,ref_dir,out_dir,npy_dict=NPY_DICT,**stat
     for f in range(nframes):
         with open(f"{data_dir}/{f}/conv", "r") as conv_file:
             ic = conv_file.read().split()
-            if "achieved" in ic and "not" not in ic:
+            ic = [item.strip('#') for item in ic]
+            if "CONVERGED" in ic and "NOT" not in ic:
                 c_list[(int)(ic[0])]=True
 
         for key, dicts in npy_dict["load"].items():
