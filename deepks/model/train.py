@@ -84,9 +84,10 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     data_keys = g_reader.readers[0].sample_all().keys()
     # L_inv_in=1 if "L_inv" in data_keys else 0
     # print("if L_inv in sample:",L_inv_in)
-    evaluator.print_head("trn_loss",data_keys)
+    align_len=20
+    evaluator.print_head("trn_loss",data_keys,align_len)
     if display_detail_test:
-        test_eval.print_head("tst_loss",data_keys)
+        test_eval.print_head("tst_loss",data_keys,align_len)
     # print("")
 
     tic = time()
@@ -109,24 +110,24 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     tst_time = time() - tic
     if display_natom_loss:
         for natom in trn_natom_loss_list.natoms():
-            evaluator.print_head(str(natom)+"_trn",data_keys)        
+            evaluator.print_head(str(natom)+"_trn",data_keys,align_len)        
         for natom in tst_natom_loss_list.natoms():
             if display_detail_test:
-                test_eval.print_head(str(natom)+"_tst",data_keys)
+                test_eval.print_head(str(natom)+"_tst",data_keys,align_len)
             else:
-                test_eval.print_head(str(natom)+"_tst",[])#just energy
+                test_eval.print_head(str(natom)+"_tst",[],align_len)#just energy
     print("")
 
     print(f"  {0:<8d}  {np.sqrt(np.abs(trn_loss[-1])):>.2e}  {np.sqrt(np.abs(tst_loss[-1])):>.2e}"
           f"  {start_lr:>.2e}  {0:>8.2f}  {tst_time:>8.2f}",end='')
     for loss_term in trn_loss[:-1]:
-        print(f"{loss_term:>18.4e}",end='')
+        print(f"{loss_term:>{align_len}.4e}",end='')
     if display_detail_test:
         for loss_term in tst_loss[:-1]:
-            print(f"{loss_term:>18.4e}",end='')
+            print(f"{loss_term:>{align_len}.4e}",end='')
     if display_natom_loss:
-        trn_natom_loss_list.print_avg_atom_loss()     
-        tst_natom_loss_list.print_avg_atom_loss()     
+        trn_natom_loss_list.print_avg_atom_loss(align_len)     
+        tst_natom_loss_list.print_avg_atom_loss(align_len)     
     print('')
 
     for epoch in range(1, n_epoch+1):
@@ -162,13 +163,13 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
             print(f"  {epoch:<8d}  {np.sqrt(np.abs(trn_loss[-1])):>.2e}  {np.sqrt(np.abs(tst_loss[-1])):>.2e}"
                   f"  {scheduler.get_last_lr()[0]:>.2e}  {trn_time:>8.2f}  {tst_time:8.2f}",end='')
             for loss_term in trn_loss[:-1]:
-                print(f"{loss_term:>18.4e}",end='')
+                print(f"{loss_term:>{align_len}.4e}",end='')
             if display_detail_test and epoch%(display_detail_test*display_epoch) == 0:
                 for loss_term in tst_loss[:-1]:
-                    print(f"{loss_term:>18.4e}",end='')
+                    print(f"{loss_term:>{align_len}.4e}",end='')
             if display_natom_loss:
-                trn_natom_loss_list.print_avg_atom_loss()
-                tst_natom_loss_list.print_avg_atom_loss()                 
+                trn_natom_loss_list.print_avg_atom_loss(align_len)
+                tst_natom_loss_list.print_avg_atom_loss(align_len)                 
             print('')
             if ckpt_file:
                 model.save(ckpt_file)

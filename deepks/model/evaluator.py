@@ -220,35 +220,34 @@ class Evaluator:
         loss.append(tot_loss)
         return loss
     
-    def print_head(self,name,data_keys):
-        len=20
-        info=f"{name}_energy".rjust(len)
+    def print_head(self,name,data_keys,align_len=20):
+        info=f"{name}_energy".rjust(align_len)
         if self.g_penalty > 0 and "eg0" in data_keys:
-            info+=f"{name}_grad".rjust(len)
+            info+=f"{name}_grad".rjust(align_len)
         # optional force calculation
         if self.f_factor > 0 and "lb_f" in data_keys:
-            info+=f"{name}_force".rjust(len)
+            info+=f"{name}_force".rjust(align_len)
         # optional stress calculation
         if self.s_factor > 0 and "lb_s" in data_keys:
-            info+=f"{name}_stress".rjust(len)
+            info+=f"{name}_stress".rjust(align_len)
         # optional orbital(bandgap) calculation
         if self.o_factor > 0 and "lb_o" in data_keys:
-            info+=f"{name}_bandgap".rjust(len)
+            info+=f"{name}_bandgap".rjust(align_len)
         # optional v_delta calculation
         if self.vd_factor > 0 and "lb_vd" in data_keys:
-            info+=f"{name}_v_delta".rjust(len)
+            info+=f"{name}_v_delta".rjust(align_len)
         # optional phi calculation
         if self.phi_factor > 0 and "lb_phi" in data_keys:
-            info+=f"{name}_phi".rjust(len)
+            info+=f"{name}_phi".rjust(align_len)
         # optional band energy calculation
         if self.band_factor > 0 and "lb_band" in data_keys:
-            info+=f"{name}_band".rjust(len)
+            info+=f"{name}_band".rjust(align_len)
         # optional density matrix calculation
         if self.density_m_factor > 0 and "lb_phi" in data_keys:
-            info+=f"{name}_dm".rjust(len)             
+            info+=f"{name}_dm".rjust(align_len)             
         # density loss with fix head grad
         if self.d_factor > 0 and "gldv" in data_keys:
-            info+=f"{name}_density".rjust(len)
+            info+=f"{name}_density".rjust(align_len)
         print(info,end='')
 
 class NatomLossList:
@@ -275,11 +274,11 @@ class NatomLossList:
         # avg upon data
         return {natom:np.mean(losses,axis=0) for (natom,losses) in self.natom_loss_list.items()}
     
-    def print_avg_atom_loss(self):
+    def print_avg_atom_loss(self,align_len=20):
         avg_atom_loss = sorted(self.avg_atom_loss().items(), key=lambda x: x[0])
         for (atom,aal) in avg_atom_loss:
             for avg_atom_loss_term in aal[:-1]:
-                print(f"{avg_atom_loss_term:>18.4e}",end='')
+                print(f"{avg_atom_loss_term:>{align_len}.4e}",end='')
 
     def avg_loss(self):
         # avg upon data and natom
