@@ -59,6 +59,19 @@ def log_args(name):
 
 
 def make_shell_mask(shell_sec):
+    '''
+        shell_sec: list of integers, each integer is the number of basis functions in this shell
+                   e.g. [1, 1, 3, 3, 5, 5] for [s, s, p, p, d, d] shells
+        mask: a 2D boolean tensor, shape [nl, mmax], where nl is the number of shells
+              and mmax is the maximum number of basis functions in shells.
+              e.g. for [s, s, p, p, d, d] shells, mask will be:
+              [[1, 0, 0, 0, 0],
+               [1, 0, 0, 0, 0],
+               [1, 1, 1, 0, 0],
+               [1, 1, 1, 0, 0],
+               [1, 1, 1, 1, 1],
+               [1, 1, 1, 1, 1]]
+    '''
     lsize = len(shell_sec)
     msize = max(shell_sec)
     mask = torch.zeros(lsize, msize, dtype=bool)
@@ -81,21 +94,16 @@ def pad_lastdim(sequences, padding_value=0):
         out_tensor[..., i, :length] = tensor
     return out_tensor
 
-
+# Following functions are used to pad and unpad tensors with a mask, using for ThermalEmbedding
 def pad_masked(tensor, mask, padding_value=0):
-    # equiv to pad_lastdim(tensor.split(shell_sec, dim=-1))
-    # assert tensor.shape[-1] == mask.sum()
+    # check if the last dimension of tensor matches the mask for non-tracing mode
+    if not (torch.jit.is_tracing() or torch.jit.is_scripting()):
+        assert tensor.shape[-1] == mask.sum()
     new_shape = tensor.shape[:-1] + mask.shape
-    return tensor.new_full(new_shape, padding_value).masked_scatter_(mask, tensor) 
-
-
-def unpad_lastdim(padded, length_list):
-    # inverse of pad_lastdim
-    return [padded[...,i,:length] for i, length in enumerate(length_list)]
+    return tensor.new_full(new_shape, padding_value).masked_scatter_(mask, tensor)
 
 
 def unpad_masked(padded, mask):
-    # equiv to torch.cat(unpad_lastdim(padded, shell_sec), dim=-1)
     new_shape = padded.shape[:-mask.ndim] + (mask.sum(),)
     return torch.masked_select(padded, mask).reshape(new_shape)
 
@@ -325,7 +333,7 @@ class CorrNet(nn.Module):
             self.eval()
         smodel = torch.jit.trace(
             self.forward, 
-            torch.empty((2, 2, self.input_dim)),
+            torch.empty((2, 2, self.input_dim)), # example input, the input should be 2D (first dim is batch size)
             **kwargs)
         self.train(old_mode)
         return smodel
@@ -351,5 +359,5 @@ class CorrNet(nn.Module):
         try:
             return torch.jit.load(filename)
         except RuntimeError:
-            checkpoint = torch.load(filename, map_location="cpu")
+            checkpoint = torch.load(filename, map_location="cpu", weights_only=False)
             return CorrNet.load_dict(checkpoint, strict=strict)

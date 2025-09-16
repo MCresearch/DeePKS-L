@@ -19,34 +19,37 @@ jobs:
     steps:
       - name: Checkout Github
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
-            python-version: 3.12
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
+          python-version: 3.12
+          channels: deepmodeling,conda-forge,defaults
+          channel-priority: true
+          activate-environment: test-env
+          environment-file: environment.yml
+          use-mamba: true
 
-      # - name: Unit Test with PyTest
-      #   run: |
-      #     pytest tests/unittests/ -s
+      - name: Unit Test with PyTest
+        shell: bash -l {0}
+        run: |
+          pytest tests/unittests/ -s
 
       - name: Integration Test withs PyTest
+        shell: bash -l {0}
         env:
           ROOT_DIR: ${{ github.workspace }}
         run: |
           pytest tests/integral/
 
-      - name: Archive Pytest test report
-        uses: actions/upload-artifact@v4
-        with:
-          name: SuperTest-test-report
-          path: report
+      # - name: Archive Pytest test report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: SuperTest-test-report
+      #     path: report
             
-      - name: Upload Pytest report to GitHub
-        uses: actions/upload-artifact@v4
-        with:
-          name: Pytest-test-report
-          path: report
+      # - name: Upload Pytest report to GitHub
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: Pytest-test-report
+      #     path: report

@@ -148,6 +148,9 @@ class Batch(object) :
     def check_finish_tag(self) :
         return self.context.check_file_exists(self.finish_tag_name)
 
+    def check_submitted_tag(self) :
+        return self.context.check_file_exists(self.sub_script_name)
+
     def _sub_script_inner(self, 
                           job_dirs,
                           cmds,

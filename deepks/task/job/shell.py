@@ -12,7 +12,7 @@ class Shell(Batch) :
     def check_status(self) :
         if self.check_finish_tag():
             return JobStatus.finished
-        elif self.check_running():
+        elif self.check_running() or self.check_submitted_tag():
             return JobStatus.running
         else:
             return JobStatus.terminated

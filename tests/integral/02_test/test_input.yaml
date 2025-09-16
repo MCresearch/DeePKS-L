@@ -1,0 +1,3 @@
+data_paths: 
+  - "../data/data_train/"
+model_file: "./model.pth"

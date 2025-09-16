@@ -1,6 +1,16 @@
 name: Mirror to Gitee Repo
 
-on: [ push, delete, create ]
+# Temporarily for master branch only.
+on: 
+  push:
+    branches: 
+      - master
+  delete:
+    branches: 
+      - master
+  create:
+    branches: 
+      - master
 
 # Ensures that only one mirror task will run at a time.
 concurrency:
