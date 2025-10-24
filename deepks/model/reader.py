@@ -19,10 +19,10 @@ def split_batch(tdict, size, dim=0):
         for i in range(nsecs[0])
     ]
 
-def generalized_eigh(h,L_inv):
-    symm_h=L_inv @ h @ L_inv.mT
+def generalized_eigh(h,trans_matrix):
+    symm_h=trans_matrix.mT @ h @ trans_matrix
     e,v=torch.linalg.eigh(symm_h)
-    phi=L_inv.mT @ v 
+    phi=trans_matrix @ v 
     return e,phi
 
 class Reader(object):
@@ -185,10 +185,10 @@ class Reader(object):
                     #print("use generalized eigh")
                     overlap=torch.tensor(np.load(self.overlap_path))
                     L=torch.linalg.cholesky(overlap)
-                    L_inv=torch.linalg.inv(L)
-                    self.t_data["L_inv"]=L_inv\
+                    trans_matrix=torch.linalg.inv(L).mT
+                    self.t_data["trans_matrix"]=trans_matrix\
                             .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
-                    band_ref,phi_ref=generalized_eigh(h_ref,L_inv)    
+                    band_ref,phi_ref=generalized_eigh(h_ref,trans_matrix)    
                 else:
                     band_ref,phi_ref=torch.linalg.eigh(h_ref,UPLO='U') # U for upper triangle
                 self.t_data["lb_band"]=band_ref\

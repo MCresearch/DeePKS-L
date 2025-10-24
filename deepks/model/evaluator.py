@@ -182,9 +182,9 @@ class Evaluator:
                 
                 if (self.phi_factor > 0 and "lb_phi" in sample) or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
                     h_base = sample["h_base"]
-                    if "L_inv" in sample:
-                        L_inv=sample["L_inv"]
-                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,L_inv)
+                    if "trans_matrix" in sample:
+                        trans_matrix=sample["trans_matrix"]
+                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,trans_matrix)
                     else:
                         band_pred,phi_pred= torch.linalg.eigh(h_base+vd_pred,UPLO='U')
                     # optional phi calculation
