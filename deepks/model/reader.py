@@ -35,6 +35,7 @@ class Reader(object):
                  phialpha_name="phialpha",gevdm_name="grad_evdm",
                  h_base_name="h_base",h_ref_name="hamiltonian",
                  read_overlap = False, overlap_name="overlap",
+                 eigh_method = 1,
                  eg_name="eg_base", gveg_name="grad_veg", 
                  gldv_name="grad_ldv", conv_name="conv", 
                  atom_name="atom", **kwargs):
@@ -61,6 +62,7 @@ class Reader(object):
         self.c_path = self.check_exist(conv_name+".npy")
         self.a_path = self.check_exist(atom_name+".npy")
         self.read_overlap = read_overlap
+        self.eigh_method = eigh_method
         # load data
         self.load_meta()
         self.prepare()
@@ -184,8 +186,16 @@ class Reader(object):
                 if self.read_overlap is True and self.overlap_path is not None:
                     #print("use generalized eigh")
                     overlap=torch.tensor(np.load(self.overlap_path))
-                    L=torch.linalg.cholesky(overlap)
-                    trans_matrix=torch.linalg.inv(L).mT
+                    # When overlap matrix is ill-conditioned, the eigenvalues (i.e. band) can suffer from significant roundoff errors.
+                    if self.eigh_method == 1:
+                        L=torch.linalg.cholesky(overlap)
+                        trans_matrix=torch.linalg.inv(L).mT
+                    # Substitute cholesky with eigen decomposition.
+                    # This modification effectively reorders the entries of symm_h, placing larger values towards the upper left-hand corner, thereby enhancing the precision in computing smaller eigenvalues
+                    elif self.eigh_method == 2:
+                        overlap_eigenvalue,overlap_eigenvector=torch.linalg.eigh(overlap)
+                        sigma_inv_sqrt = torch.diag_embed(1.0 / torch.sqrt(overlap_eigenvalue))
+                        trans_matrix=overlap_eigenvector @ sigma_inv_sqrt
                     self.t_data["trans_matrix"]=trans_matrix\
                             .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
                     band_ref,phi_ref=generalized_eigh(h_ref,trans_matrix)    
