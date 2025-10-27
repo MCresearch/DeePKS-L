@@ -18,10 +18,12 @@ class Evaluator:
                  phi_factor=0., phi_occ=0,
                  band_factor=0.,band_occ=0,
                  density_m_factor=0.,density_m_occ=0,
+                 phi_align_factor=0., phi_align_occ=0,
                  density_factor=0., grad_penalty=0., 
                  energy_lossfn=None, force_lossfn=None, 
                  stress_lossfn=None, orbital_lossfn=None,
                  v_delta_lossfn=None, phi_lossfn=None,
+                 phi_align_lossfn=None,
                  band_lossfn=None, density_m_lossfn=None,
                  energy_per_atom=0,vd_divide_by_nlocal=False):
         # energy term
@@ -83,7 +85,15 @@ class Evaluator:
             density_m_lossfn = make_loss(**density_m_lossfn)
         self.density_m_factor = density_m_factor
         self.density_m_lossfn = density_m_lossfn   
-        self.get_density_m_occ = get_occ_func(density_m_occ)                  
+        self.get_density_m_occ = get_occ_func(density_m_occ)
+        # phi alignment term
+        if phi_align_lossfn is None:
+            phi_align_lossfn = {}
+        if isinstance(phi_align_lossfn, dict):
+            phi_align_lossfn = make_loss(**phi_align_lossfn)
+        self.phi_align_factor = phi_align_factor
+        self.phi_align_lossfn = phi_align_lossfn   
+        self.get_phi_align_occ = get_occ_func(phi_align_occ)                  
         # coulomb term of dm; requires head gradient
         self.d_factor = density_factor
         # gradient penalty, not very useful
@@ -156,9 +166,10 @@ class Evaluator:
                 # print(o_label.shape, op.shape, o_pred.shape, gev.shape)
                 tot_loss = tot_loss + self.o_factor * self.o_lossfn(o_pred, o_label)
                 loss.append(self.o_factor * self.o_lossfn(o_pred, o_label))
-            # optional v_delta/phi/band_energy/density_matrix calculation
+            # optional v_delta/phi/band_energy/density_matrix/phi_alignment calculation
             if (self.vd_factor > 0 and "lb_vd" in sample) or (self.phi_factor > 0 and "lb_phi" in sample) \
-                or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
+                or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample) \
+                or (self.phi_align_factor > 0 and "lb_phi" in sample and "lb_band" in sample):
                 # cal v_delta
                 if "vdp" in sample:
                     vdp = sample["vdp"] # can be complex
@@ -182,9 +193,9 @@ class Evaluator:
                 
                 if (self.phi_factor > 0 and "lb_phi" in sample) or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
                     h_base = sample["h_base"]
-                    if "L_inv" in sample:
-                        L_inv=sample["L_inv"]
-                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,L_inv)
+                    if "trans_matrix" in sample:
+                        trans_matrix=sample["trans_matrix"]
+                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,trans_matrix)
                     else:
                         band_pred,phi_pred= torch.linalg.eigh(h_base+vd_pred,UPLO='U')
                     # optional phi calculation
@@ -212,6 +223,20 @@ class Evaluator:
                         density_m_loss = self.density_m_factor * self.density_m_lossfn(density_m_pred, density_m_label) * nlocal
                         tot_loss = tot_loss + density_m_loss
                         loss.append(density_m_loss)
+                
+                # optional phi alignment calculation, don't need eigh on vd_pred
+                if self.phi_align_factor > 0 and "lb_phi" in sample and "lb_band" in sample:
+                    phi_label = sample["lb_phi"]
+                    band_label = sample["lb_band"]
+                    occ = self.get_phi_align_occ(natom)
+                    occ_phi_label = phi_label[..., :occ].clone()
+                    occ_band_label = band_label[..., :occ].clone()
+                    # phi_align_band should close to diagnoal matrix of occ_band_label
+                    phi_align_band = occ_phi_label.mT @ vd_pred @ occ_phi_label
+                    true_diag_band = torch.diag_embed(occ_band_label)
+                    phi_align_loss = self.phi_align_factor * self.phi_align_lossfn(phi_align_band, true_diag_band)
+                    tot_loss = tot_loss + phi_align_loss
+                    loss.append(phi_align_loss)
             # density loss with fix head grad
             if self.d_factor > 0 and "gldv" in sample:
                 gldv = sample["gldv"]
@@ -245,7 +270,10 @@ class Evaluator:
             info+=f"{name}_band".rjust(align_len)
         # optional density matrix calculation
         if self.density_m_factor > 0 and "lb_phi" in data_keys:
-            info+=f"{name}_dm".rjust(align_len)             
+            info+=f"{name}_dm".rjust(align_len)    
+        # optional phi alignment calculation
+        if self.phi_align_factor > 0 and "lb_phi" in data_keys and "lb_band" in data_keys:
+            info+=f"{name}_phi_align".rjust(align_len)          
         # density loss with fix head grad
         if self.d_factor > 0 and "gldv" in data_keys:
             info+=f"{name}_density".rjust(align_len)
