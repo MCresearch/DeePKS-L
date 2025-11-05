@@ -224,15 +224,17 @@ class Evaluator:
                         tot_loss = tot_loss + density_m_loss
                         loss.append(density_m_loss)
                 
-                # optional phi alignment calculation, don't need eigh on vd_pred
+                # optional phi alignment calculation, don't need eigh on h_base+vd_pred
                 if self.phi_align_factor > 0 and "lb_phi" in sample and "lb_band" in sample:
                     phi_label = sample["lb_phi"]
                     band_label = sample["lb_band"]
+                    h_base = sample["h_base"]
+                    h_tot_pred=h_base+vd_pred
                     occ = self.get_phi_align_occ(natom)
                     occ_phi_label = phi_label[..., :occ].clone()
                     occ_band_label = band_label[..., :occ].clone()
                     # phi_align_band should close to diagnoal matrix of occ_band_label
-                    phi_align_band = occ_phi_label.mT @ vd_pred @ occ_phi_label
+                    phi_align_band = occ_phi_label.mT @ h_tot_pred @ occ_phi_label
                     true_diag_band = torch.diag_embed(occ_band_label)
                     phi_align_loss = self.phi_align_factor * self.phi_align_lossfn(phi_align_band, true_diag_band)
                     tot_loss = tot_loss + phi_align_loss

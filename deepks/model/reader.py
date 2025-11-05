@@ -194,6 +194,9 @@ class Reader(object):
                     # This modification effectively reorders the entries of symm_h, placing larger values towards the upper left-hand corner, thereby enhancing the precision in computing smaller eigenvalues
                     elif self.eigh_method == 2:
                         overlap_eigenvalue,overlap_eigenvector=torch.linalg.eigh(overlap)
+                        # replace small eigenvalue with epsilon, avoid numerical instability
+                        epsilon = 1e-16
+                        overlap_eigenvalue = torch.clamp(overlap_eigenvalue, min=epsilon)
                         sigma_inv_sqrt = torch.diag_embed(1.0 / torch.sqrt(overlap_eigenvalue))
                         trans_matrix=overlap_eigenvector @ sigma_inv_sqrt
                     self.t_data["trans_matrix"]=trans_matrix\
