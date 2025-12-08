@@ -12,13 +12,13 @@ from deepks.default import DEVICE
 from deepks.model.model import CorrNet
 from deepks.model.reader import GroupReader
 from deepks.utils import load_dirs, load_elem_table
-from deepks.model.utils import preprocess, fit_elem_const, make_loss
+from deepks.model.utils import preprocess, fit_elem_const, make_loss, vd_grad_processor
 from deepks.model.evaluator import Evaluator, NatomLossList
 
 def train(model, g_reader, n_epoch=1000, test_reader=None, *,
           energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, phi_align_factor=0., phi_align_occ=0, density_factor=0.,
           energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, phi_loss=None, band_loss=None, density_m_loss=None, phi_align_loss=None, grad_penalty=0.,
-          energy_per_atom=0, vd_divide_by_nlocal=False,
+          energy_per_atom=0, vd_divide_by_nlocal=False, vd_grad_process=False, vd_grad_max=1.0, vd_grad_momentum=0.9,
           start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None, decay_rate_iter=None,
           weight_decay=0.,  fix_embedding=False,
           display_epoch=100, display_detail_test=0, display_natom_loss=False, ckpt_file="model.pth",
@@ -98,12 +98,12 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     trn_natom_loss_list=NatomLossList()
     tst_natom_loss_list=NatomLossList()
     for batch in g_reader.sample_all_batch():
-        loss=evaluator(model,batch)
+        loss,_=evaluator(model,batch)
         natom=batch["eig"].shape[1]
         trn_natom_loss_list.add_loss(natom,loss)
     trn_loss=trn_natom_loss_list.avg_loss()
     for batch in test_reader.sample_all_batch():
-        loss=test_eval(model,batch)
+        loss,_=test_eval(model,batch)
         natom=batch["eig"].shape[1]
         tst_natom_loss_list.add_loss(natom,loss)
     tst_loss=tst_natom_loss_list.avg_loss()    
@@ -134,6 +134,9 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
         tst_natom_loss_list.print_avg_atom_loss(align_len)     
     print('')
 
+    if vd_grad_process:
+        vd_processor = vd_grad_processor(vd_grad_max, vd_grad_momentum)
+
     for epoch in range(1, n_epoch+1):
         tic = time()
         # loss_list = []
@@ -142,9 +145,13 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
         for sample in g_reader:
             model.train()
             optimizer.zero_grad()
-            loss = evaluator(model, sample)
+            loss, vd_pred = evaluator(model, sample)
+            if vd_grad_process and vd_pred is not None:
+                vd_processor.register_hook(vd_pred)
             loss[-1].backward()
             optimizer.step()
+            if vd_grad_process and vd_pred is not None:
+                vd_processor.remove_hook()       
             # loss_list.append([loss_term.item() for loss_term in loss])
             natom=sample["eig"].shape[1]
             trn_natom_loss_list.add_loss(natom,loss)
@@ -159,7 +166,7 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
             # tst_loss = np.mean([[loss_term.item() for loss_term in test_eval(model, batch)]
             #                 for batch in test_reader.sample_all_batch()],axis=0)
             for batch in test_reader.sample_all_batch():
-                loss=test_eval(model,batch)
+                loss,_=test_eval(model,batch)
                 natom=batch["eig"].shape[1]
                 tst_natom_loss_list.add_loss(natom,loss)
             tst_loss=tst_natom_loss_list.avg_loss()  
@@ -175,9 +182,12 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
                 trn_natom_loss_list.print_avg_atom_loss(align_len)
                 tst_natom_loss_list.print_avg_atom_loss(align_len)                 
             print('')
+            if vd_grad_process:
+                vd_processor.flush_log(epoch)
             if ckpt_file:
                 model.save(ckpt_file)
-
+    if vd_grad_process:
+        vd_processor.close_log()
     if ckpt_file:
         model.save(ckpt_file)
     if graph_file:
