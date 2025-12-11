@@ -1,6 +1,7 @@
 import os,time,sys
 import numpy as np
 import torch
+from deepks.model.utils import safe_eigh
 
 def concat_batch(tdicts, dim=0):
     keys = tdicts[0].keys()
@@ -19,9 +20,21 @@ def split_batch(tdict, size, dim=0):
         for i in range(nsecs[0])
     ]
 
-def generalized_eigh(h,trans_matrix):
+def eigh_wrapper(a, use_safe_eigh=False):
+    """
+    Wrapper for eigendecomposition that supports safe gradients for degenerate cases.
+    Args:
+        a: Symmetric/Hermitian matrix.
+        use_safe_eigh: If True, uses SafeEigh to prevent NaN gradients.
+    """
+    if use_safe_eigh:
+        return safe_eigh(a)
+    else:
+        return torch.linalg.eigh(a, UPLO='U')
+
+def generalized_eigh(h,trans_matrix,use_safe_eigh=False):
     symm_h=trans_matrix.mT @ h @ trans_matrix
-    e,v=torch.linalg.eigh(symm_h)
+    e,v=eigh_wrapper(symm_h, use_safe_eigh=use_safe_eigh)
     phi=trans_matrix @ v 
     return e,phi
 

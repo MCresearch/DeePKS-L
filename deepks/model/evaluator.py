@@ -7,7 +7,7 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
-from deepks.model.reader import generalized_eigh
+from deepks.model.reader import generalized_eigh, eigh_wrapper
 from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss
 
 class Evaluator:
@@ -25,7 +25,8 @@ class Evaluator:
                  v_delta_lossfn=None, phi_lossfn=None,
                  phi_align_lossfn=None,
                  band_lossfn=None, density_m_lossfn=None,
-                 energy_per_atom=0,vd_divide_by_nlocal=False):
+                 energy_per_atom=0,vd_divide_by_nlocal=False,
+                 use_safe_eigh=False):
         # energy term
         if energy_lossfn is None:
             energy_lossfn = {}
@@ -100,6 +101,8 @@ class Evaluator:
         self.g_penalty = grad_penalty
         # energy loss divide by 1/natom/natom^2
         self.energy_per_atom=energy_per_atom
+        # use safe_eigh to prevent large grad because of decomposition
+        self.use_safe_eigh=use_safe_eigh
 
     def __call__(self, model, sample):
         _dref = next(model.parameters()).device
@@ -195,9 +198,9 @@ class Evaluator:
                     h_base = sample["h_base"]
                     if "trans_matrix" in sample:
                         trans_matrix=sample["trans_matrix"]
-                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,trans_matrix)
+                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,trans_matrix, self.use_safe_eigh)
                     else:
-                        band_pred,phi_pred= torch.linalg.eigh(h_base+vd_pred,UPLO='U')
+                        band_pred,phi_pred= eigh_wrapper(h_base+vd_pred)
                     # optional phi calculation
                     if self.phi_factor > 0 and "lb_phi" in sample:
                         phi_label = sample["lb_phi"]
