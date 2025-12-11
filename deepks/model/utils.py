@@ -204,8 +204,8 @@ class vd_grad_processor:
                     grad = torch.where(mask, replacement, grad)
                     
                     # Buffer the log message
-                    log_msg = (f"Anomaly detected (Max: {max_val:.4f}, NaN: {has_nan}). "
-                               f"Replaced with EMA (Max of EMA: {ema_max_str}).\n")
+                    self.log_buffer.append(f"Anomaly detected (Max: {max_val:.4f}, NaN: {has_nan}). " + \
+                                           f"Replaced with EMA (Max of EMA: {ema_max_str}).\n")
                 else:
                     # Normal gradient: Update EMA
                     if self.running_avg_grad is None:
@@ -223,12 +223,11 @@ class vd_grad_processor:
     
     def flush_log(self,epoch):
         """Write buffered logs to disk. Call this periodically (e.g., end of epoch)."""
-        if self.log_buffer:
-            self.log_buffer.append(f"--- Epoch {epoch} End ---\n")
-            self.log_file.writelines(self.log_buffer)
-            self.log_buffer.clear()
-            self.log_file.flush()
+        self.log_buffer.append(f"--- Epoch {epoch} End ---\n")
+        self.log_file.writelines(self.log_buffer)
+        self.log_buffer.clear()
+        self.log_file.flush()
 
-    def close_log(self):
-        self.flush_log()
+    def close_log(self,epoch):
+        self.flush_log(epoch)
         self.log_file.close()
