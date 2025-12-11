@@ -166,7 +166,6 @@ class Evaluator:
                 # print(o_label.shape, op.shape, o_pred.shape, gev.shape)
                 tot_loss = tot_loss + self.o_factor * self.o_lossfn(o_pred, o_label)
                 loss.append(self.o_factor * self.o_lossfn(o_pred, o_label))
-            vd_pred=None
             # optional v_delta/phi/band_energy/density_matrix/phi_alignment calculation
             if (self.vd_factor > 0 and "lb_vd" in sample) or (self.phi_factor > 0 and "lb_phi" in sample) \
                 or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample) \
@@ -247,7 +246,7 @@ class Evaluator:
                 tot_loss = tot_loss + d_loss
                 loss.append(d_loss)
         loss.append(tot_loss)
-        return loss, vd_pred
+        return loss
     
     def print_head(self,name,data_keys,align_len=20):
         info=f"{name}_energy".rjust(align_len)
