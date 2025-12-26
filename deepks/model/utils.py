@@ -187,6 +187,9 @@ def cal_vd_masked_loss(H_pred, H_label, S_matrix, S_threshold=1e-6, H_threshold=
     
     return masked_sum / (active_elements + 1e-12)
 
+def cal_bandgap(band, occ):
+    return band[...,occ] - band[...,occ-1]
+
 def get_occ_func(occ):
     # print("type:",type(occ))
     if isinstance(occ, int):
