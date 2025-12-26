@@ -199,6 +199,8 @@ class Reader(object):
                 if self.read_overlap is True and self.overlap_path is not None:
                     #print("use generalized eigh")
                     overlap=torch.tensor(np.load(self.overlap_path))
+                    self.t_data["overlap"]=overlap\
+                        .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()
                     # When overlap matrix is ill-conditioned, the eigenvalues (i.e. band) can suffer from significant roundoff errors.
                     if self.eigh_method == 1:
                         L=torch.linalg.cholesky(overlap)

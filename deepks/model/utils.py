@@ -157,6 +157,36 @@ def cal_phi_loss(phi_pred,phi_label,phi_occ):
     #print("loss.shape:",loss.shape)
     return loss
 
+def cal_vd_masked_loss(H_pred, H_label, S_matrix, S_threshold=1e-6, H_threshold=1e-6):
+    """
+    Computes the Mean Squared Error of Hamiltonian elements filtered by 
+    the Overlap matrix and Hamiltonian matrix magnitude. Supports 4D tensors (nframe, nks, nlocal, nlocal).
+    
+    Args:
+        H_pred (torch.Tensor): Predicted Hamiltonian.
+        H_label (torch.Tensor): Label Hamiltonian.
+        S_matrix (torch.Tensor): Overlap matrix used for masking.
+        S_threshold (float): Threshold to ignore insignificant interactions.
+        H_threshold (float): Threshold to ignore insignificant interactions.
+        
+    Returns:
+        torch.Tensor: Scalar loss value.
+    """
+    with torch.no_grad():
+        # Generate mask where |S| > threshold or |H| > threshold. 
+        # Diagonals (S_ii=1) are naturally included if threshold < 1.
+        mask = ( (torch.abs(S_matrix) > S_threshold) | (torch.abs(H_label) > H_threshold) ).to(H_pred.dtype)
+
+    # Compute element-wise squared difference
+    diff_sq = (H_pred - H_label) ** 2
+    
+    # Apply mask and normalize by the number of active elements in the mask
+    # to maintain loss consistency across different system sizes or k-points.
+    masked_sum = torch.sum(diff_sq * mask)
+    active_elements = torch.sum(mask)
+    
+    return masked_sum / (active_elements + 1e-12)
+
 def get_occ_func(occ):
     # print("type:",type(occ))
     if isinstance(occ, int):

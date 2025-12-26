@@ -18,7 +18,7 @@ from deepks.model.evaluator import Evaluator, NatomLossList
 def train(model, g_reader, n_epoch=1000, test_reader=None, *,
           energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, phi_align_factor=0., phi_align_occ=0, density_factor=0.,
           energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, phi_loss=None, band_loss=None, density_m_loss=None, phi_align_loss=None, grad_penalty=0.,
-          energy_per_atom=0, vd_divide_by_nlocal=False, use_safe_eigh=False,
+          energy_per_atom=0, vd_divide_by_nlocal=False, vd_masked_loss=False, vd_masked_S_threshold=1e-6, vd_masked_H_threshold=1e-6, use_safe_eigh=False,
           start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None, decay_rate_iter=None,
           weight_decay=0.,  fix_embedding=False,
           display_epoch=100, display_detail_test=0, display_natom_loss=False, ckpt_file="model.pth",
@@ -62,6 +62,7 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
                           phi_align_lossfn=phi_align_loss,
                           density_factor=density_factor, grad_penalty=grad_penalty, 
                           energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal,
+                          vd_masked_loss=vd_masked_loss, vd_masked_S_threshold=vd_masked_S_threshold, vd_masked_H_threshold=vd_masked_H_threshold,
                           use_safe_eigh=use_safe_eigh)
     if not display_detail_test:
         # make test evaluator that only returns l2loss of energy
@@ -83,7 +84,9 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
                             band_lossfn=band_loss, density_m_lossfn=density_m_loss,
                             phi_align_lossfn=phi_align_loss,
                             density_factor=to_one(density_factor), grad_penalty=grad_penalty,
-                            energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal)
+                            energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal,
+                            vd_masked_loss=vd_masked_loss, vd_masked_S_threshold=vd_masked_S_threshold, vd_masked_H_threshold=vd_masked_H_threshold,
+                            use_safe_eigh=use_safe_eigh)
 
     print("# epoch      trn_err   tst_err        lr  trn_time  tst_time",end='')
     data_keys = g_reader.readers[0].sample_all().keys()
