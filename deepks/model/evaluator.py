@@ -8,7 +8,7 @@ try:
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 from deepks.model.reader import generalized_eigh, eigh_wrapper
-from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, cal_vd_masked_loss, cal_bandgap, get_occ_func, make_loss
+from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, cal_vd_masked_loss_hs, cal_vd_masked_loss_width, cal_bandgap, get_occ_func, make_loss
 
 class Evaluator:
     def __init__(self,
@@ -27,8 +27,9 @@ class Evaluator:
                  phi_align_lossfn=None,
                  band_lossfn=None, bandgap_lossfn=None, density_m_lossfn=None,
                  energy_per_atom=0,vd_divide_by_nlocal=False,
-                 vd_masked_loss=False, 
+                 vd_masked_loss=0, 
                  vd_masked_S_threshold=1e-6, vd_masked_H_threshold=1e-6,
+                 vd_masked_width=1,
                  use_safe_eigh=False):
         # energy term
         if energy_lossfn is None:
@@ -119,6 +120,8 @@ class Evaluator:
         # threshold for vd_masked_loss
         self.vd_masked_S_threshold=vd_masked_S_threshold
         self.vd_masked_H_threshold=vd_masked_H_threshold
+        # width for vd_masked_loss_width
+        self.vd_masked_width=vd_masked_width
 
     def __call__(self, model, sample):
         _dref = next(model.parameters()).device
@@ -205,8 +208,11 @@ class Evaluator:
                 # optional v_delta calculation
                 if self.vd_factor > 0 and "lb_vd" in sample:
                     vd_label = sample["lb_vd"]
-                    if self.vd_masked_loss and "overlap" in sample:
-                        vd_loss = self.vd_factor * cal_vd_masked_loss(vd_pred, vd_label, sample["overlap"], self.vd_masked_S_threshold, self.vd_masked_H_threshold)
+                    if self.vd_masked_loss :
+                        if self.vd_masked_loss == 1 and "overlap" in sample:
+                            vd_loss = self.vd_factor * cal_vd_masked_loss_hs(vd_pred, vd_label, sample["overlap"], self.vd_masked_S_threshold, self.vd_masked_H_threshold)
+                        elif self.vd_masked_loss == 2:
+                            vd_loss = self.vd_factor * cal_vd_masked_loss_width(vd_pred, vd_label, self.vd_masked_width)
                     else:
                         vd_loss = self.vd_factor * self.vd_lossfn(vd_pred, vd_label)
                         # original: mean method,divide by nlocal**2. vd_divide_by_nlocal:divide by nlocal
