@@ -157,7 +157,7 @@ def cal_phi_loss(phi_pred,phi_label,phi_occ):
     #print("loss.shape:",loss.shape)
     return loss
 
-def cal_vd_masked_loss(H_pred, H_label, S_matrix, S_threshold=1e-6, H_threshold=1e-6):
+def cal_vd_masked_loss_hs(H_pred, H_label, S_matrix, S_threshold=1e-6, H_threshold=1e-6):
     """
     Computes the Mean Squared Error of Hamiltonian elements filtered by 
     the Overlap matrix and Hamiltonian matrix magnitude. Supports 4D tensors (nframe, nks, nlocal, nlocal).
@@ -175,7 +175,7 @@ def cal_vd_masked_loss(H_pred, H_label, S_matrix, S_threshold=1e-6, H_threshold=
     with torch.no_grad():
         # Generate mask where |S| > threshold or |H| > threshold. 
         # Diagonals (S_ii=1) are naturally included if threshold < 1.
-        mask = ( (torch.abs(S_matrix) > S_threshold) | (torch.abs(H_label) > H_threshold) ).to(H_pred.dtype)
+        mask = ( (torch.abs(S_matrix) > S_threshold) | (torch.abs(H_label) > H_threshold) ).to(device=H_pred.device, dtype=H_pred.dtype)
 
     # Compute element-wise squared difference
     diff_sq = (H_pred - H_label) ** 2
@@ -185,6 +185,34 @@ def cal_vd_masked_loss(H_pred, H_label, S_matrix, S_threshold=1e-6, H_threshold=
     masked_sum = torch.sum(diff_sq * mask)
     active_elements = torch.sum(mask)
     
+    return masked_sum / (active_elements + 1e-12)
+
+def cal_vd_masked_loss_width(H_pred, H_label, width=1):
+    """
+    Computes the Mean Squared Error of Hamiltonian elements filtered by width .
+    Args:
+        H_pred (torch.Tensor): Predicted Hamiltonian.
+        H_label (torch.Tensor): Label Hamiltonian.
+        width (int): Width of the mask
+    Returns:
+        torch.Tensor: Scalar loss value.
+    """
+    with torch.no_grad():
+        nlocal = H_pred.size(-1)
+        i = torch.arange(nlocal, device=H_pred.device).view(nlocal, 1)  # (nlocal, 1)
+        j = torch.arange(nlocal, device=H_pred.device).view(1, nlocal)  # (1, nlocal)
+        
+        # calculate the shortest distance on the circle
+        diff = torch.abs(i - j)
+        dist = torch.minimum(diff, nlocal - diff)
+        
+        # mask is 1 if distance < width, 0 otherwise
+        mask = (dist < width).to(dtype=H_pred.dtype)
+    
+    diff_sq = (H_pred - H_label) ** 2
+    masked_sum = torch.sum(diff_sq * mask)
+    active_elements = torch.sum(mask)
+
     return masked_sum / (active_elements + 1e-12)
 
 def cal_bandgap(band, occ):
