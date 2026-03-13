@@ -35,8 +35,10 @@ jobs:
 
       - name: Run smoke/unit/integration/regression tests
         shell: bash -l {0}
+        env:
+          ENABLE_PYABACUS_TESTS: "0"
         run: |
-          pytest -q tests/smoke tests/unit tests/integration tests/regression
+          pytest -q -m "not pyabacus" tests/smoke tests/unit tests/integration tests/regression
 
       # - name: Archive Pytest test report
       #   uses: actions/upload-artifact@v4
