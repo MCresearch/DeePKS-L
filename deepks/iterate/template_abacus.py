@@ -1,10 +1,12 @@
 import os
 import numpy as np
+import torch
 from glob import glob
 from collections import Counter
 from deepks.default import CMODEL_FILE, NAME_TYPE, TYPE_NAME
 from deepks.utils import flat_file_list, load_dirs
 from deepks.utils import get_sys_name, load_sys_paths
+from deepks.utils import read_csr
 from deepks.task.task import PythonTask
 from deepks.task.task import BatchTask, GroupBatchTask, DPDispatcherTask
 from deepks.task.workflow import Sequence
@@ -371,6 +373,20 @@ def gather_stats_abacus(systems_train, systems_test,
         natoms = atom_data.shape[1]
         if atom_data.shape[2] != 4:
             raise ValueError("atom.npy should have shape (nframes, natoms, 4)")
+        # Get lattice constant
+        if os.path.isfile(load_ref_path + "box.npy"):
+            box_data = np.load(load_ref_path + "box.npy")
+        else:
+            box_data = np.array([stat_args["lattice_vector"]]) # shape (3, 3)
+            # duplicate for each frame
+            box_data = box_data.reshape(1, 9).repeat(nframes, axis=0)
+        box_data = box_data.reshape(nframes, 3, 3) # shape (nframes, 3, 3)
+        # if coord_type is direct, multiply by lattice constant
+        if stat_args["coord_type"] == "Direct":
+            atom_data[:, :, 1:4] = np.matmul(atom_data[:, :, 1:4], box_data)  # Direct to Cartesian
+        # Convert unit to Bohr
+        atom_data[:, :, 1:4] *= stat_args['lattice_constant']  # to Bohr
+        box_data *= stat_args['lattice_constant']  # to Bohr
 
         ## Initialize of properties list
         conv = np.full((nframes,1), False) # convergence of each frame
@@ -382,6 +398,7 @@ def gather_stats_abacus(systems_train, systems_test,
         s_base = None
         o_base = None
         h_base = None
+        hr_base = None
 
         # properties for total model
         e_tot = None
@@ -389,12 +406,14 @@ def gather_stats_abacus(systems_train, systems_test,
         s_tot = None
         o_tot = None
         h_tot = None
+        hr_tot = None
 
         # properties for deepks calculation
         gvx = None
         gvepsl = None
         orbital_precalc = None
         v_delta_precalc = None
+        vdr_precalc = None
         phialpha = None
         gevdm = None
         overlap = None
@@ -405,8 +424,8 @@ def gather_stats_abacus(systems_train, systems_test,
             # Check convergence of each frame
             with open(f"{sys_train_paths[i]}/ABACUS/{f}/conv","r") as conv_file:
                 ic=conv_file.read().split()
-                ic = [item.strip('#') for item in ic]
-                if "CONVERGED" in ic and "NOT" not in ic:
+                ic = [item.strip('#').upper() for item in ic]
+                if ("CONVERGED" in ic or "ACHIEVED" in ic) and "NOT" not in ic:
                     conv[(int)(ic[0])]=True
 
             # Energy and eigenvalues of density matrix
@@ -527,6 +546,69 @@ def gather_stats_abacus(systems_train, systems_test,
                             gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
                         assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
                         gevdm[f] = gevdm_tmp
+
+            # V_delta_R (Hamiltonian)
+            if(deepks_v_delta < 0):
+                hrcs = read_csr(load_f_path + "deepks_hrtot.csr")
+                hrcs = hrcs.to_dense().numpy()
+                if hr_tot is None:
+                    hr_tot = np.empty((nframes,) + hrcs.shape, dtype=hrcs.dtype)
+                if (hrcs.shape[0] > hr_tot.shape[1]):
+                    # use np.pad to fill zeros in hr_tot
+                    n_add = hrcs.shape[0] - hr_tot.shape[1]
+                    hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                elif (hrcs.shape[0] < hr_tot.shape[1]):
+                    # use np.pad to fill zeros in hrcs
+                    n_add = hr_tot.shape[1] - hrcs.shape[0]
+                    hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                assert hrcs.shape == hr_tot.shape[1:], f"Shape of hr_tot {hr_tot.shape} does not match with {hrcs.shape}!"
+                hr_tot[f] = hrcs
+                if os.path.exists(load_f_path + "deepks_hrdelta.csr"):
+                    v_delta_r = read_csr(load_f_path + "deepks_hrdelta.csr")
+                    v_delta_r = v_delta_r.to_dense().numpy()
+                    if (v_delta_r.shape != hrcs.shape):
+                        # padding the smaller one to match the shape
+                        if v_delta_r.shape[0] < hrcs.shape[0]:
+                            n_add = hrcs.shape[0] - v_delta_r.shape[0]
+                            v_delta_r = np.pad(v_delta_r, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                        elif v_delta_r.shape[0] > hrcs.shape[0]:
+                            n_add = v_delta_r.shape[0] - hrcs.shape[0]
+                            hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    hrtmp = hrcs - v_delta_r
+                    if hr_base is None:
+                        hr_base = np.empty((nframes,) + hrtmp.shape, dtype=hrtmp.dtype)
+                    if (hrtmp.shape[0] > hr_base.shape[1]):
+                        # use np.pad to fill zeros in hr_base
+                        n_add = hrtmp.shape[0] - hr_base.shape[1]
+                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    elif (hrtmp.shape[0] < hr_base.shape[1]):
+                        # use np.pad to fill zeros in hrtmp
+                        n_add = hr_base.shape[1] - hrtmp.shape[0]
+                        hrtmp = np.pad(hrtmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    assert hrtmp.shape[3:] == hr_base.shape[4:], f"Shape of hr_base {hr_base.shape} does not match with {hrtmp.shape}!"
+                    hr_base[f] = hrtmp
+                if deepks_v_delta == -1:
+                    if os.path.exists(load_f_path + "deepks_vdrpre.npy"):
+                        vdr_precalc_tmp = np.load(load_f_path + "deepks_vdrpre.npy")
+                        if vdr_precalc is None:
+                            vdr_precalc = np.empty((nframes,) + vdr_precalc_tmp.shape, dtype=vdr_precalc_tmp.dtype)
+                        if (vdr_precalc_tmp.shape[0] > vdr_precalc.shape[1]):
+                            # use np.pad to fill zeros in vdr_precalc
+                            n_add = vdr_precalc_tmp.shape[0] - vdr_precalc.shape[1]
+                            vdr_precalc = np.pad(vdr_precalc, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                        elif (vdr_precalc_tmp.shape[0] < vdr_precalc.shape[1]):
+                            # use np.pad to fill zeros in vdr_precalc_tmp
+                            n_add = vdr_precalc.shape[1] - vdr_precalc_tmp.shape[0]
+                            vdr_precalc_tmp = np.pad(vdr_precalc_tmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                        assert vdr_precalc_tmp.shape == vdr_precalc.shape[1:], f"Shape of vdr_precalc {vdr_precalc.shape} does not match with {vdr_precalc_tmp.shape}!"
+                        vdr_precalc[f] = vdr_precalc_tmp
+                elif deepks_v_delta == -2:
+                    if os.path.exists(load_f_path + "deepks_gevdm.npy"):
+                        gevdm_tmp = np.load(load_f_path + "deepks_gevdm.npy")
+                        if gevdm is None:
+                            gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
+                        assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
+                        gevdm[f] = gevdm_tmp
         
         ## Save data    
         # Convergence      
@@ -552,6 +634,8 @@ def gather_stats_abacus(systems_train, systems_test,
         
         np.save(save_path + "atom.npy", atom_data)
         del atom_data
+        np.save(save_path + "box.npy", box_data)
+        del box_data
 
         # Forces
         if(cal_force): 
@@ -619,6 +703,40 @@ def gather_stats_abacus(systems_train, systems_test,
                 np.save(save_path + "overlap.npy", overlap)
                 del overlap
 
+        # V_delta_R (Hamiltonian)
+        if(deepks_v_delta < 0):
+            hr_ref = np.load(load_ref_path + "hamiltonian_r.npy")
+            if hr_ref.shape[0] != nframes or hr_ref.ndim != 6:
+                raise ValueError(f"hamiltonian_r.npy shape should be (nframes, nR, nR, nR, nlocal, nlocal), but got {hr_ref.shape}.")
+            # make sure hr_base, hr_tot have the same shape as hr_ref
+            if hr_base is not None:
+                if hr_base.shape[1:] != hr_ref.shape[1:]:
+                    if hr_base.shape[1] < hr_ref.shape[1]:
+                        n_add = hr_ref.shape[1] - hr_base.shape[1]
+                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    elif hr_base.shape[1] > hr_ref.shape[1]:
+                        n_add = hr_base.shape[1] - hr_ref.shape[1]
+                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+            if hr_tot is not None:
+                if hr_tot.shape[1:] != hr_ref.shape[1:]:
+                    if hr_tot.shape[1] < hr_ref.shape[1]:
+                        n_add = hr_ref.shape[1] - hr_tot.shape[1]
+                        hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    elif hr_tot.shape[1] > hr_ref.shape[1]:
+                        n_add = hr_tot.shape[1] - hr_ref.shape[1]
+                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+            np.save(save_path + "hamiltonian_r.npy", hr_ref)
+            np.save(save_path + "hr_base.npy", hr_base)
+            np.save(save_path + "hr_tot.npy", hr_tot)
+            np.save(save_path + "l_hr_delta.npy", hr_ref-hr_base)
+            del hr_base, hr_tot, hr_ref
+            if vdr_precalc is not None:
+                np.save(save_path + "vdr_precalc.npy", vdr_precalc)
+                del vdr_precalc
+            elif gevdm is not None:
+                np.save(save_path + "grad_evdm.npy", gevdm)
+                del gevdm
+
     # concatenate data (test)
     if not os.path.exists(test_dump):
         os.mkdir(test_dump)
@@ -635,6 +753,20 @@ def gather_stats_abacus(systems_train, systems_test,
         natoms = atom_data.shape[1]
         if atom_data.shape[2] != 4:
             raise ValueError("atom.npy should have shape (nframes, natoms, 4)")
+        # Get lattice constant
+        if os.path.isfile(load_ref_path + "box.npy"):
+            box_data = np.load(load_ref_path + "box.npy")
+        else:
+            box_data = np.array([stat_args["lattice_vector"]]) # shape (3, 3)
+            # duplicate for each frame
+            box_data = box_data.reshape(1, 9).repeat(nframes, axis=0)
+        box_data = box_data.reshape(nframes, 3, 3) # shape (nframes, 3, 3)
+        # if coord_type is direct, multiply by lattice constant
+        if stat_args["coord_type"] == "Direct":
+            atom_data[:, :, 1:4] = np.matmul(atom_data[:, :, 1:4], box_data)  # Direct to Cartesian
+        # Convert unit to Bohr
+        atom_data[:, :, 1:4] *= stat_args['lattice_constant']  # to Bohr
+        box_data *= stat_args['lattice_constant']  # to Bohr
 
         ## Initialize of properties list
         conv = np.full((nframes,1), False) # convergence of each frame
@@ -646,6 +778,7 @@ def gather_stats_abacus(systems_train, systems_test,
         s_base = None
         o_base = None
         h_base = None
+        hr_base = None
 
         # properties for total model
         e_tot = None
@@ -653,12 +786,14 @@ def gather_stats_abacus(systems_train, systems_test,
         s_tot = None
         o_tot = None
         h_tot = None
+        hr_tot = None
 
         # properties for deepks calculation
         gvx = None
         gvepsl = None
         orbital_precalc = None
         v_delta_precalc = None
+        vdr_precalc = None
         phialpha = None
         gevdm = None
         overlap = None
@@ -669,8 +804,8 @@ def gather_stats_abacus(systems_train, systems_test,
             # Check convergence of each frame
             with open(f"{sys_test_paths[i]}/ABACUS/{f}/conv","r") as conv_file:
                 ic=conv_file.read().split()
-                ic = [item.strip('#') for item in ic]
-                if "CONVERGED" in ic and "NOT" not in ic:
+                ic = [item.strip('#').upper() for item in ic]
+                if ("CONVERGED" in ic or "ACHIEVED" in ic) and "NOT" not in ic:
                     conv[(int)(ic[0])]=True
 
             # Energy and eigenvalues of density matrix
@@ -792,6 +927,69 @@ def gather_stats_abacus(systems_train, systems_test,
                         assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
                         gevdm[f] = gevdm_tmp
 
+            # V_delta_R (Hamiltonian)
+            if(deepks_v_delta < 0):
+                hrcs = read_csr(load_f_path + "deepks_hrtot.csr")
+                hrcs = hrcs.to_dense().numpy()
+                if hr_tot is None:
+                    hr_tot = np.empty((nframes,) + hrcs.shape, dtype=hrcs.dtype)
+                if (hrcs.shape[0] > hr_tot.shape[1]):
+                    # use np.pad to fill zeros in hr_tot
+                    n_add = hrcs.shape[0] - hr_tot.shape[1]
+                    hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                elif (hrcs.shape[0] < hr_tot.shape[1]):
+                    # use np.pad to fill zeros in hrcs
+                    n_add = hr_tot.shape[1] - hrcs.shape[0]
+                    hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                assert hrcs.shape == hr_tot.shape[1:], f"Shape of hr_tot {hr_tot.shape} does not match with {hrcs.shape}!"
+                hr_tot[f] = hrcs
+                if os.path.exists(load_f_path + "deepks_hrdelta.csr"):
+                    v_delta_r = read_csr(load_f_path + "deepks_hrdelta.csr")
+                    v_delta_r = v_delta_r.to_dense().numpy()
+                    if (v_delta_r.shape != hrcs.shape):
+                        # padding the smaller one to match the shape
+                        if v_delta_r.shape[0] < hrcs.shape[0]:
+                            n_add = hrcs.shape[0] - v_delta_r.shape[0]
+                            v_delta_r = np.pad(v_delta_r, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                        elif v_delta_r.shape[0] > hrcs.shape[0]:
+                            n_add = v_delta_r.shape[0] - hrcs.shape[0]
+                            hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    hrtmp = hrcs - v_delta_r
+                    if hr_base is None:
+                        hr_base = np.empty((nframes,) + hrtmp.shape, dtype=hrtmp.dtype)
+                    if (hrtmp.shape[0] > hr_base.shape[1]):
+                        # use np.pad to fill zeros in hr_base
+                        n_add = hrtmp.shape[0] - hr_base.shape[1]
+                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    elif (hrtmp.shape[0] < hr_base.shape[1]):
+                        # use np.pad to fill zeros in hrtmp
+                        n_add = hr_base.shape[1] - hrtmp.shape[0]
+                        hrtmp = np.pad(hrtmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    assert hrtmp.shape[3:] == hr_base.shape[4:], f"Shape of hr_base {hr_base.shape} does not match with {hrtmp.shape}!"
+                    hr_base[f] = hrtmp
+                if deepks_v_delta == -1:
+                    if os.path.exists(load_f_path + "deepks_vdrpre.npy"):
+                        vdr_precalc_tmp = np.load(load_f_path + "deepks_vdrpre.npy")
+                        if vdr_precalc is None:
+                            vdr_precalc = np.empty((nframes,) + vdr_precalc_tmp.shape, dtype=vdr_precalc_tmp.dtype)
+                        if (vdr_precalc_tmp.shape[0] > vdr_precalc.shape[1]):
+                            # use np.pad to fill zeros in vdr_precalc
+                            n_add = vdr_precalc_tmp.shape[0] - vdr_precalc.shape[1]
+                            vdr_precalc = np.pad(vdr_precalc, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                        elif (vdr_precalc_tmp.shape[0] < vdr_precalc.shape[1]):
+                            # use np.pad to fill zeros in vdr_precalc_tmp
+                            n_add = vdr_precalc.shape[1] - vdr_precalc_tmp.shape[0]
+                            vdr_precalc_tmp = np.pad(vdr_precalc_tmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                        assert vdr_precalc_tmp.shape == vdr_precalc.shape[1:], f"Shape of vdr_precalc {vdr_precalc.shape} does not match with {vdr_precalc_tmp.shape}!"
+                        vdr_precalc[f] = vdr_precalc_tmp
+                elif deepks_v_delta == -2:
+                    if os.path.exists(load_f_path + "deepks_gevdm.npy"):
+                        gevdm_tmp = np.load(load_f_path + "deepks_gevdm.npy")
+                        if gevdm is None:
+                            gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
+                        assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
+                        gevdm[f] = gevdm_tmp
+
         ## Save data
         # Convergence
         np.save(save_path + "conv.npy", conv)
@@ -816,6 +1014,8 @@ def gather_stats_abacus(systems_train, systems_test,
         
         np.save(save_path + "atom.npy", atom_data)
         del atom_data
+        np.save(save_path + "box.npy", box_data)
+        del box_data
 
         # Forces
         if(cal_force): 
@@ -882,6 +1082,40 @@ def gather_stats_abacus(systems_train, systems_test,
                 overlap = np.load(load_ref_path + "overlap.npy")
                 np.save(save_path + "overlap.npy", overlap)
                 del overlap
+
+        # V_delta_R (Hamiltonian)
+        if(deepks_v_delta < 0):
+            hr_ref = np.load(load_ref_path + "hamiltonian_r.npy")
+            if hr_ref.shape[0] != nframes or hr_ref.ndim != 6:
+                raise ValueError(f"hamiltonian_r.npy shape should be (nframes, nR, nR, nR, nlocal, nlocal), but got {hr_ref.shape}.")
+            # make sure hr_base, hr_tot have the same shape as hr_ref
+            if hr_base is not None:
+                if hr_base.shape[1:] != hr_ref.shape[1:]:
+                    if hr_base.shape[1] < hr_ref.shape[1]:
+                        n_add = hr_ref.shape[1] - hr_base.shape[1]
+                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    elif hr_base.shape[1] > hr_ref.shape[1]:
+                        n_add = hr_base.shape[1] - hr_ref.shape[1]
+                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+            if hr_tot is not None:
+                if hr_tot.shape[1:] != hr_ref.shape[1:]:
+                    if hr_tot.shape[1] < hr_ref.shape[1]:
+                        n_add = hr_ref.shape[1] - hr_tot.shape[1]
+                        hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+                    elif hr_tot.shape[1] > hr_ref.shape[1]:
+                        n_add = hr_tot.shape[1] - hr_ref.shape[1]
+                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
+            np.save(save_path + "hamiltonian_r.npy", hr_ref)
+            np.save(save_path + "hr_base.npy", hr_base)
+            np.save(save_path + "hr_tot.npy", hr_tot)
+            np.save(save_path + "l_hr_delta.npy", hr_ref-hr_base)
+            del hr_base, hr_tot, hr_ref
+            if vdr_precalc is not None:
+                np.save(save_path + "vdr_precalc.npy", vdr_precalc)
+                del vdr_precalc
+            elif gevdm is not None:
+                np.save(save_path + "grad_evdm.npy", gevdm)
+                del gevdm
 
     # check convergence and print in log
     from deepks.scf.stats import print_stats

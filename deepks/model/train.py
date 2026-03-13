@@ -16,8 +16,8 @@ from deepks.model.utils import preprocess, fit_elem_const, make_loss
 from deepks.model.evaluator import Evaluator, NatomLossList
 
 def train(model, g_reader, n_epoch=1000, test_reader=None, *,
-          energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
-          energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, phi_loss=None, band_loss=None, density_m_loss=None, grad_penalty=0.,
+          energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., v_delta_r_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
+          energy_loss=None, force_loss=None, stress_loss=None, orbital_loss=None, v_delta_loss=None, v_delta_r_loss=None, phi_loss=None, band_loss=None, density_m_loss=None, grad_penalty=0.,
           energy_per_atom=0, vd_divide_by_nlocal=False,
           start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None, decay_rate_iter=None,
           weight_decay=0.,  fix_embedding=False,
@@ -50,13 +50,13 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
     # make evaluators for training
     evaluator = Evaluator(energy_factor=energy_factor, force_factor=force_factor, 
                           stress_factor=stress_factor, orbital_factor=orbital_factor,
-                          v_delta_factor=v_delta_factor,
+                          v_delta_factor=v_delta_factor, v_delta_r_factor=v_delta_r_factor,
                           phi_factor=phi_factor, phi_occ=phi_occ,
                           band_factor=band_factor, band_occ=band_occ,
                           density_m_factor=density_m_factor, density_m_occ=density_m_occ,
                           energy_lossfn=energy_loss, force_lossfn=force_loss,
                           stress_lossfn=stress_loss, orbital_lossfn=orbital_loss,
-                          v_delta_lossfn=v_delta_loss,phi_lossfn=phi_loss,
+                          v_delta_lossfn=v_delta_loss, v_delta_r_lossfn=v_delta_r_loss, phi_lossfn=phi_loss,
                           band_lossfn=band_loss, density_m_lossfn=density_m_loss,
                           density_factor=density_factor, grad_penalty=grad_penalty, 
                           energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal)
@@ -69,13 +69,13 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
         to_one = lambda x: 0. if x == 0. else 1.
         test_eval = Evaluator(energy_factor=to_one(energy_factor), force_factor=to_one(force_factor), 
                             stress_factor=to_one(stress_factor), orbital_factor=to_one(orbital_factor),
-                            v_delta_factor=to_one(v_delta_factor),
+                            v_delta_factor=to_one(v_delta_factor), v_delta_r_factor=to_one(v_delta_r_factor),
                             phi_factor=to_one(phi_factor), phi_occ=phi_occ,
                             band_factor=to_one(band_factor), band_occ=band_occ,
                             density_m_factor=to_one(density_m_factor), density_m_occ=density_m_occ,
                             energy_lossfn=energy_loss, force_lossfn=force_loss,
                             stress_lossfn=stress_loss, orbital_lossfn=orbital_loss,
-                            v_delta_lossfn=v_delta_loss,phi_lossfn=phi_loss,
+                            v_delta_lossfn=v_delta_loss, v_delta_r_lossfn=v_delta_r_loss, phi_lossfn=phi_loss,
                             band_lossfn=band_loss, density_m_lossfn=density_m_loss,
                             density_factor=to_one(density_factor), grad_penalty=grad_penalty,
                             energy_per_atom=energy_per_atom, vd_divide_by_nlocal=vd_divide_by_nlocal)
@@ -140,6 +140,10 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
             optimizer.zero_grad()
             loss = evaluator(model, sample)
             loss[-1].backward()
+            # print("vdr_pred grad:",evaluator.vdr_pred.grad)
+            # print("e_loss grad:",evaluator.e_loss.grad)
+            # print("vdr_loss grad:",evaluator.vdr_loss.grad)
+            # print("tot_loss grad:",evaluator.tot_loss.grad)
             optimizer.step()
             # loss_list.append([loss_term.item() for loss_term in loss])
             natom=sample["eig"].shape[1]

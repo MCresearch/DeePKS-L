@@ -91,7 +91,7 @@ def make_abacus_scf_input(fp_params):
         assert(len(fp_params["deepks_band_range"]) == 2), "length of 'deepks_band_range' should be 2."
         ret += "deepks_band_range %d %d\n" % (fp_params["deepks_band_range"][0], fp_params["deepks_band_range"][1]) 
     if "deepks_v_delta" in fp_params:
-        assert(fp_params["deepks_v_delta"] == -1  or fp_params["deepks_v_delta"] == 0  or fp_params["deepks_v_delta"] == 1 or fp_params["deepks_v_delta"] == 2), "'deepks_v_delta' should be either -1/0/1/2."
+        assert(fp_params["deepks_v_delta"] == -2 or fp_params["deepks_v_delta"] == -1 or fp_params["deepks_v_delta"] == 0 or fp_params["deepks_v_delta"] == 1 or fp_params["deepks_v_delta"] == 2), "'deepks_v_delta' should be either -2/-1/0/1/2."
         ret += "deepks_v_delta %d\n" % fp_params["deepks_v_delta"]
     if "model_file" in fp_params:
         ret += "deepks_model %s\n" % fp_params["model_file"]
@@ -102,8 +102,8 @@ def make_abacus_scf_input(fp_params):
         ret += "exx_pca_threshold 1e-4\n"
         ret += "exx_c_threshold 1e-4\n"
         ret += "exx_dm_threshold 1e-4\n"
-        ret += "exx_schwarz_threshold 1e-5\n"
-        ret += "exx_cauchy_threshold 1e-7\n"
+        # ret += "exx_schwarz_threshold 1e-5\n"
+        # ret += "exx_cauchy_threshold 1e-7\n"
         ret += "exx_ccp_rmesh_times 1\n"
     return ret
 

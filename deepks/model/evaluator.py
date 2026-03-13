@@ -8,21 +8,22 @@ try:
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 from deepks.model.reader import generalized_eigh
-from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss
+from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss, get_gedm, cal_vdr, loss_hr
 
 class Evaluator:
     def __init__(self,
                  energy_factor=1., force_factor=0., 
                  stress_factor=0., orbital_factor=0.,
-                 v_delta_factor=0., 
+                 v_delta_factor=0., v_delta_r_factor=0.,
                  phi_factor=0., phi_occ=0,
                  band_factor=0.,band_occ=0,
                  density_m_factor=0.,density_m_occ=0,
                  density_factor=0., grad_penalty=0., 
                  energy_lossfn=None, force_lossfn=None, 
                  stress_lossfn=None, orbital_lossfn=None,
-                 v_delta_lossfn=None, phi_lossfn=None,
-                 band_lossfn=None, density_m_lossfn=None,
+                 v_delta_lossfn=None, v_delta_r_lossfn=None,
+                 phi_lossfn=None, band_lossfn=None, 
+                 density_m_lossfn=None,
                  energy_per_atom=0,vd_divide_by_nlocal=False):
         # energy term
         if energy_lossfn is None:
@@ -60,6 +61,14 @@ class Evaluator:
         self.vd_factor = v_delta_factor
         self.vd_lossfn = v_delta_lossfn
         self.vd_divide_by_nlocal = vd_divide_by_nlocal
+        # v_delta_r term
+        if v_delta_r_lossfn is None:
+            v_delta_r_lossfn = {}
+        if isinstance(v_delta_r_lossfn, dict):
+            # v_delta_r_lossfn = make_loss(**v_delta_r_lossfn)
+            v_delta_r_lossfn = loss_hr
+        self.vdr_factor = v_delta_r_factor
+        self.vdr_lossfn = v_delta_r_lossfn
         # phi term
         if phi_lossfn is None:
             phi_lossfn = {}
@@ -99,7 +108,9 @@ class Evaluator:
         loss=[]
         # keep only phialpha in cpu, move all other data to _dref, set complex dtype to complex128
         for k, v in sample.items():
-            if isinstance(v, list):
+            if k == "data_shape":
+                sample[k] = v
+            elif isinstance(v, list):
                 sample[k] = [vv.to(_dref, non_blocking=True) for vv in v]
             elif not torch.is_complex(v):
                 sample[k] = v.to(_dref, non_blocking=True)
@@ -114,6 +125,7 @@ class Evaluator:
                         or (self.s_factor > 0 and "lb_s" in sample) 
                         or (self.o_factor > 0 and "lb_o" in sample)
                         or (self.vd_factor > 0 and "lb_vd" in sample)
+                        or (self.vdr_factor > 0 and "lb_vdr" in sample)
                         or (self.phi_factor > 0 and "lb_phi" in sample)
                         or (self.band_factor > 0 and "lb_band" in sample)
                         or (self.density_m_factor > 0)
@@ -124,8 +136,9 @@ class Evaluator:
         e_pred = model(eig)
         # may divide e_loss by 1 or natom or natom**2: this way energy loss will not increase when number of atom increase
         natom = eig.shape[1]
-        tot_loss = tot_loss + self.e_factor * self.e_lossfn(e_pred, e_label) / (natom**self.energy_per_atom)
-        loss.append(self.e_factor * self.e_lossfn(e_pred, e_label) / (natom**self.energy_per_atom))
+        e_loss = self.e_factor * self.e_lossfn(e_pred, e_label) / (natom**self.energy_per_atom)
+        tot_loss = tot_loss + e_loss
+        loss.append(e_loss)
         if requires_grad:
             [gev] = torch.autograd.grad(e_pred, eig, 
                         grad_outputs=torch.ones_like(e_pred),
@@ -212,6 +225,22 @@ class Evaluator:
                         density_m_loss = self.density_m_factor * self.density_m_lossfn(density_m_pred, density_m_label) * nlocal
                         tot_loss = tot_loss + density_m_loss
                         loss.append(density_m_loss)
+            # optional v_delta_r calculation
+            if self.vdr_factor > 0 and "lb_vdr" in sample:
+                vdr_label = sample["lb_vdr"] * 0.5 # Ry2Hartree
+                if "vdrp" in sample:
+                    vdrp = sample["vdrp"]
+                    vdr_pred = torch.einsum("...bcdxyap,...ap->...bcdxy", vdrp, gev)
+                elif "gevdm" in sample and "iR_mat" in sample and "overlap" in sample and "data_shape" in sample:
+                    gevdm = sample["gevdm"]
+                    overlap = sample["overlap"]
+                    iR_mat = sample["iR_mat"]
+                    data_shape = sample["data_shape"]
+                    gedm = get_gedm(gev, gevdm, data_shape[0], data_shape[1])
+                    vdr_pred = cal_vdr(gedm, overlap, iR_mat, vdr_label)
+                vdr_loss = self.vdr_factor * self.vdr_lossfn(vdr_pred, vdr_label)
+                tot_loss = tot_loss + vdr_loss
+                loss.append(vdr_loss)
             # density loss with fix head grad
             if self.d_factor > 0 and "gldv" in sample:
                 gldv = sample["gldv"]
@@ -237,6 +266,9 @@ class Evaluator:
         # optional v_delta calculation
         if self.vd_factor > 0 and "lb_vd" in data_keys:
             info+=f"{name}_v_delta".rjust(align_len)
+        # optional v_delta_r calculation
+        if self.vdr_factor > 0 and "lb_vdr" in data_keys:
+            info+=f"{name}_v_delta_r".rjust(align_len)
         # optional phi calculation
         if self.phi_factor > 0 and "lb_phi" in data_keys:
             info+=f"{name}_phi".rjust(align_len)

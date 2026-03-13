@@ -1,6 +1,7 @@
 import os,time,sys
 import numpy as np
 import torch
+from deepks.model.utils import make_integrator, cal_nb_overlap
 
 def concat_batch(tdicts, dim=0):
     keys = tdicts[0].keys()
@@ -10,12 +11,30 @@ def concat_batch(tdicts, dim=0):
         for k in keys
     }
 
-def split_batch(tdict, size, dim=0):
-    dsplit = {k: torch.split(v, size, dim) for k,v in tdict.items()}
-    nsecs = [len(v) for v in dsplit.values()]
+def split_batch(tdict, size, dim=0, global_keys=None):
+    if global_keys is None:
+        global_keys = {"data_shape"}
+    dsplit = {}
+    for k,v in tdict.items():
+        if k in global_keys:
+            dsplit[k] = v
+        elif isinstance(v, torch.Tensor):
+            dsplit[k] = torch.split(v, size, dim)
+        elif isinstance(v, np.ndarray):
+            # support only for dim=0
+            assert dim == 0, "numpy.ndarray supports only for dim=0 split"
+            dsplit[k] = np.array_split(v, range(size, v.shape[0], size), axis=0)
+        elif isinstance(v, list):
+            # support only for dim=0
+            assert dim == 0, "list supports only for dim=0 split"
+            dsplit[k] = [v[i:i+size] for i in range(0, len(v), size)]
+        else:
+            raise TypeError(f"Unsupported type for split_batch: {type(v)}")
+    # dsplit = {k: torch.split(v, size, dim) for k,v in tdict.items()}
+    nsecs = [len(v) for k, v in dsplit.items() if k not in global_keys]
     assert all(ns == nsecs[0] for ns in nsecs)
     return [
-        {k: v[i] for k, v in dsplit.items()}
+        {k: (v[i] if k not in global_keys else v) for k, v in dsplit.items()}
         for i in range(nsecs[0])
     ]
 
@@ -32,12 +51,14 @@ class Reader(object):
                  s_name="l_s_delta", gvepsl_name="grad_vepsl", 
                  o_name="l_o_delta", op_name="orbital_precalc",
                  h_name="l_h_delta", vdp_name="v_delta_precalc",
-                 phialpha_name="phialpha",gevdm_name="grad_evdm",
-                 h_base_name="h_base",h_ref_name="hamiltonian",
+                 vdrp_name="vdr_precalc", phialpha_name="phialpha",
+                 gevdm_name="grad_evdm", hr_name="l_hr_delta",
+                 h_base_name="h_base", h_ref_name="hamiltonian",
                  read_overlap = False, overlap_name="overlap",
                  eg_name="eg_base", gveg_name="grad_veg", 
                  gldv_name="grad_ldv", conv_name="conv", 
-                 atom_name="atom", **kwargs):
+                 atom_name="atom", box_name="box", 
+                 orb_list=None, alpha_list=None, **kwargs):
         self.data_path = data_path
         self.batch_size = batch_size
         self.e_path = self.check_exist(e_name+".npy")
@@ -45,6 +66,7 @@ class Reader(object):
         self.s_path = self.check_exist(s_name+".npy")
         self.o_path = self.check_exist(o_name+".npy")
         self.h_path = self.check_exist(h_name+".npy")
+        self.hr_path = self.check_exist(hr_name+".npy")
         self.h_base_path = self.check_exist(h_base_name+".npy")
         self.h_ref_path = self.check_exist(h_ref_name+".npy")
         self.overlap_path = self.check_exist(overlap_name+".npy")
@@ -55,12 +77,16 @@ class Reader(object):
         self.gvepsl_path = self.check_exist(gvepsl_name+".npy")
         self.op_path = self.check_exist(op_name+".npy")
         self.vdp_path = self.check_exist(vdp_name+".npy")
+        self.vdrp_path = self.check_exist(vdrp_name+".npy")
         self.eg_path = self.check_exist(eg_name+".npy")
         self.gveg_path = self.check_exist(gveg_name+".npy")
         self.gldv_path = self.check_exist(gldv_name+".npy")
         self.c_path = self.check_exist(conv_name+".npy")
         self.a_path = self.check_exist(atom_name+".npy")
+        self.b_path = self.check_exist(box_name+".npy")
         self.read_overlap = read_overlap
+        self.orb_list = ["../../" + orb for orb in orb_list] if orb_list is not None else None
+        self.alpha_list = ["../../" + alpha for alpha in alpha_list] if alpha_list is not None else None
         # load data
         self.load_meta()
         self.prepare()
@@ -113,9 +139,13 @@ class Reader(object):
             atoms = np.load(self.a_path).reshape(raw_nframes, self.natm, 4) # atom.npy
             self.atom_info["elems"] = atoms[:, :, 0][conv].round().astype(int)
             self.atom_info["coords"] = atoms[:, :, 1:][conv]
+        if self.b_path is not None:
+            box = np.load(self.b_path).reshape(raw_nframes, 3, 3)
+            self.atom_info["lattice"] = box[conv]
         # Energy and descriptor
         # load data in torch
         self.t_data = {}
+        # Energy
         self.t_data["lb_e"] = torch.tensor(self.data_ec)
         self.t_data["eig"] = torch.tensor(self.data_dm)
         # Force
@@ -195,6 +225,27 @@ class Reader(object):
                     .reshape(raw_nframes, -1, self.nlocal)[conv].clone()             
                 self.t_data["lb_phi"]=phi_ref\
                     .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()      
+        # Hamiltonian in R space
+        if self.hr_path is not None:
+            self.t_data["lb_vdr"] = torch.tensor(np.load(self.hr_path)[conv])
+            self.nlocal = self.t_data["lb_vdr"].shape[-1]
+            if self.vdrp_path is not None and self.gevdm_path is not None: #both file exist, choose newer ones
+                if os.path.getmtime(self.vdrp_path) >= os.path.getmtime(self.gevdm_path):#phialpha and gevdm modified at the same time
+                    self.gevdm_path=None
+                else:
+                    self.vdrp_path=None
+            if self.gevdm_path is not None:
+                gevdm = np.load(self.gevdm_path)
+                self.t_data["gevdm"] = torch.tensor(gevdm[conv])
+                if self.orb_list is not None and self.alpha_list is not None and self.a_path is not None and self.b_path is not None:
+                    types = torch.tensor(self.atom_info["elems"])
+                    atoms = torch.tensor(self.atom_info["coords"])
+                    box = torch.tensor(self.atom_info["lattice"])
+                    orb, alpha, integrator = make_integrator(self.orb_list, self.alpha_list)
+                    self.t_data["overlap"], self.t_data["iR_mat"], self.t_data["data_shape"] = \
+                        cal_nb_overlap(types, atoms, box, orb, alpha, integrator, self.nlocal)
+            elif self.vdrp_path is not None:
+                self.t_data["vdrp"] = torch.tensor(np.load(self.vdrp_path)[conv])
         # Energy gradient
         if self.eg_path is not None and self.gveg_path is not None:
             self.t_data['eg0'] = torch.tensor(
@@ -211,6 +262,10 @@ class Reader(object):
                   .reshape(raw_nframes, self.natm, self.ndesc)[conv])
 
     def sample_train(self, index_list=None):
+        '''
+        Sample a training batch from the reader in given order (index_list).
+        If index_list is None, sample in random order.
+        '''
         if self.batch_size == self.nframes == 1:
             return self.sample_all()
         if len(self.idx_queue) < self.batch_size:
@@ -220,7 +275,15 @@ class Reader(object):
                 self.idx_queue = np.random.choice(self.nframes, self.nframes, replace=False)
         sample_idx = self.idx_queue[:self.batch_size]
         self.idx_queue = self.idx_queue[self.batch_size:]
-        return {k: v[sample_idx] for k, v in self.t_data.items()}
+        out_dict = {}
+        for k, v in self.t_data.items():
+            if k in {"data_shape"}:
+                out_dict[k] = v
+            elif isinstance(v, torch.Tensor):
+                out_dict[k] = v[sample_idx]
+            elif isinstance(v, list):
+                out_dict[k] = [v[i] for i in sample_idx]
+        return out_dict
 
     def sample_all(self):
         return self.t_data
@@ -294,6 +357,8 @@ class GroupReader(object) :
         
         self.group_batch = max(group_batch, 1)
         if self.group_batch > 1:
+            # Group systems by shape (natoms, neg) and compute group probability
+            # Actually combine systems with the same shape into a group
             self.group_dict = {}
             # self.group_index = {}
             for idx, r in enumerate(self.readers):
@@ -324,14 +389,27 @@ class GroupReader(object) :
         return sample
 
     def sample_idx(self) :
+        '''
+        Sample a system (group) index based on the system probability distribution.
+        '''
         return np.random.choice(np.arange(self.nsystems), p=self.sys_prob)
         
     def sample_train(self, idx=None, index_list=None):
+        '''
+        Sample a training batch from a specific system reader (idx) in given order (index_list).
+        If idx is None, sample from a random system reader.
+        If index_list is None, sample in random order.
+        '''
         if idx is None:
             idx = self.sample_idx()
         return self.readers[idx].sample_train(index_list=index_list)
 
     def sample_train_group(self):
+        '''
+        Sample a big batch from `group_batch` systems and `batch_size` frames from each system.
+        The systems are sampled based on the group probability distribution.
+        The batch size is `group_batch * batch_size`. 
+        '''
         cidx = np.random.choice(len(self.group_prob), p=list(self.group_prob.values()))
         cshape = list(self.group_prob.keys())[cidx]
         cgrp = self.group_dict[cshape]
@@ -340,12 +418,21 @@ class GroupReader(object) :
         return batch
 
     def sample_all(self, idx=None) :
+        '''
+        Sample all data from a specific system reader (idx).
+        If idx is None, sample from a random system reader.
+        This method is used to get all data for training or evaluation.
+        '''
         if idx is None:
             idx = self.sample_idx()
         return \
             self.readers[idx].sample_all()
     
     def sample_all_batch(self, idx=None):
+        '''
+        Sample all data from a specific system reader (idx) in batches.
+        If idx is None, sample data from all systems in batches in system order.
+        '''
         if idx is not None:
             all_data = self.sample_all(idx)
             size = self.batch_size * self.group_batch
