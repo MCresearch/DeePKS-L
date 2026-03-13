@@ -75,6 +75,7 @@ def test_migrated_integral_scf_placeholder_sample():
     assert "model_file" in cfg
 
 
+@pytest.mark.pyabacus
 def test_migrated_integral_train_sample_if_pyabacus(tmp_path):
     """
     依赖：`pyabacus`（可选）、`deepks.model.train.main` 与迁移样例 `train_input.yaml`。
@@ -95,6 +96,7 @@ def test_migrated_integral_train_sample_if_pyabacus(tmp_path):
     assert lines[-1].split()[-1] == "3.0845e-04"
 
 
+@pytest.mark.pyabacus
 def test_migrated_integral_test_sample_if_pyabacus(tmp_path):
     """
     依赖：`pyabacus`（可选）、`deepks.model.test.main` 与迁移样例 `test_input.yaml`。

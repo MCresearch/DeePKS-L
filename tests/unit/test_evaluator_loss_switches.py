@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 
 pytest.importorskip("pyabacus")
+pytestmark = pytest.mark.pyabacus
 
 from deepks.model.evaluator import Evaluator
 

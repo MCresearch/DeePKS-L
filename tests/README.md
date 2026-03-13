@@ -50,3 +50,4 @@
 
 - `pyscf`、`abacus`、`pyabacus` 为可选依赖。
 - 若环境未安装，对应测试会自动 `skip`，不影响其余测试回归。
+- `pyabacus` 相关测试在仓库默认策略下也会被禁用；仅在显式设置 `ENABLE_PYABACUS_TESTS=1` 时启用。
