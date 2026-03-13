@@ -5,8 +5,12 @@ import torch
 import torch.nn.functional as F
 from deepks.default import DEVICE, TYPE_NAME
 from deepks.utils import R2iR
-from pyabacus import ModuleBase as base
-from pyabacus import ModuleNAO as nao
+try:
+    from pyabacus import ModuleBase as base
+    from pyabacus import ModuleNAO as nao
+except ImportError:
+    base = None
+    nao = None
 import gc
 try:
     import deepks
@@ -422,6 +426,8 @@ def nlocalVSidx(types, orb, nlocal):
     return nlocal2idx, idx2nlocal
 
 def make_integrator(orb_files, alpha_files):
+    if base is None or nao is None:
+        raise ImportError("pyabacus is required for make_integrator()")
     orb = nao.RadialCollection()
     alpha = nao.RadialCollection()
     orb.build(len(orb_files), orb_files)
