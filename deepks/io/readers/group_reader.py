@@ -309,8 +309,8 @@ class Reader(object):
         self.t_data["lb_e"] += econst
         
 
-class GroupReader(object) :
-    def __init__ (self, path_list, batch_size=1, group_batch=1, extra_label=True, **kwargs):
+class GroupReader(object):
+    def __init__(self, path_list, batch_size=1, group_batch=1, extra_label=True, **kwargs):
         if isinstance(path_list, str):
             path_list = [path_list]
         self.path_list = path_list
@@ -332,27 +332,12 @@ class GroupReader(object) :
         print(f"# load {self.nsystems} systems with fields {list(dict.fromkeys(data_keys))}")
         # probability of each system
         self.ndesc = self.readers[0].ndesc
-        self.sys_prob = [float(ii) for ii in self.nframes] / np.sum(self.nframes)
+        self.sys_prob = np.asarray(self.nframes, dtype=float)
+        self.sys_prob = self.sys_prob / self.sys_prob.sum()
         
         self.group_batch = max(group_batch, 1)
         if self.group_batch > 1:
-            # Group systems by shape (natoms, neg) and compute group probability
-            # Actually combine systems with the same shape into a group
-            self.group_dict = {}
-            # self.group_index = {}
-            for idx, r in enumerate(self.readers):
-                shape = (r.natm, getattr(r, "neg", None))
-                if shape in self.group_dict:
-                    self.group_dict[shape].append(r)
-                    # self.group_index[shape].append(idx)
-                else:
-                    self.group_dict[shape] = [r]
-                    # self.group_index[shape] = [idx]
-            self.group_prob = {n: sum(r.nframes for r in r_list) / sum(self.nframes)
-                                for n, r_list in self.group_dict.items()}
-            self.batch_prob_raw = {n: [r.nframes / r.batch_size for r in r_list] 
-                                for n, r_list in self.group_dict.items()}
-            self.batch_prob = {n: p / np.sum(p) for n, p in self.batch_prob_raw.items()}
+            self._build_group_sampling_cache()
 
         self._sample_used = 0
 
@@ -366,6 +351,35 @@ class GroupReader(object) :
         sample = self.sample_train() if self.group_batch == 1 else self.sample_train_group()
         self._sample_used += sample["lb_e"].shape[0]
         return sample
+
+    @staticmethod
+    def _reader_shape(reader):
+        return (reader.natm, getattr(reader, "neg", None))
+
+    def _build_group_sampling_cache(self):
+        """Cache grouped readers and sampling probabilities for grouped batches."""
+        self.group_dict = {}
+        for reader in self.readers:
+            shape = self._reader_shape(reader)
+            self.group_dict.setdefault(shape, []).append(reader)
+
+        total_frames = float(np.sum(self.nframes))
+        self.group_prob = {
+            shape: sum(reader.nframes for reader in readers) / total_frames
+            for shape, readers in self.group_dict.items()
+        }
+        self.batch_prob_raw = {
+            shape: np.asarray([reader.nframes / reader.batch_size for reader in readers], dtype=float)
+            for shape, readers in self.group_dict.items()
+        }
+        self.batch_prob = {
+            shape: probs / probs.sum()
+            for shape, probs in self.batch_prob_raw.items()
+        }
+
+        # Avoid rebuilding dict key/value lists on every sample.
+        self._group_shapes = tuple(self.group_prob.keys())
+        self._group_probs = np.asarray(list(self.group_prob.values()), dtype=float)
 
     def sample_idx(self) :
         '''
@@ -389,8 +403,8 @@ class GroupReader(object) :
         The systems are sampled based on the group probability distribution.
         The batch size is `group_batch * batch_size`. 
         '''
-        cidx = np.random.choice(len(self.group_prob), p=list(self.group_prob.values()))
-        cshape = list(self.group_prob.keys())[cidx]
+        cidx = np.random.choice(len(self._group_shapes), p=self._group_probs)
+        cshape = self._group_shapes[cidx]
         cgrp = self.group_dict[cshape]
         csys = np.random.choice(cgrp, self.group_batch, p=self.batch_prob[cshape])
         batch = concat_batch([s.sample_train() for s in csys], dim=0)
@@ -404,8 +418,7 @@ class GroupReader(object) :
         '''
         if idx is None:
             idx = self.sample_idx()
-        return \
-            self.readers[idx].sample_all()
+        return self.readers[idx].sample_all()
     
     def sample_all_batch(self, idx=None):
         '''
