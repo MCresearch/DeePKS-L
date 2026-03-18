@@ -8,7 +8,6 @@ from pyscf.grad import rks as rks_grad
 from pyscf.grad import uks as uks_grad
 from deepks.core.physics.pyscf.scf import t_make_pdm, t_shell_eig, t_batch_jacobian
 
-# see ./_old_grad.py for a more clear (but maybe slower) implementation
 # all variables and functions start with "t_" are torch related.
 # convention in einsum:
 #   i,j: orbital
