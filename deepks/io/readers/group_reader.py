@@ -1,89 +1,75 @@
-import os,time,sys
+import os
+import sys
 import numpy as np
 import torch
+
+from deepks.io.schemas.reader_fields import (
+    DEFAULT_READER_FIELD_NAMES,
+    ReaderFieldNames,
+    resolve_reader_paths,
+)
+from deepks.io.transforms.batch import concat_batch, split_batch
+from deepks.io.transforms.linalg import generalized_eigh
 from deepks.model.utils import make_integrator, cal_nb_overlap
-
-def concat_batch(tdicts, dim=0):
-    keys = tdicts[0].keys()
-    assert all(d.keys() == keys for d in tdicts)
-    return {
-        k: torch.cat([d[k] for d in tdicts], dim) 
-        for k in keys
-    }
-
-def split_batch(tdict, size, dim=0, global_keys=None):
-    if global_keys is None:
-        global_keys = {"data_shape"}
-    dsplit = {}
-    for k,v in tdict.items():
-        if k in global_keys:
-            dsplit[k] = v
-        elif isinstance(v, torch.Tensor):
-            dsplit[k] = torch.split(v, size, dim)
-        elif isinstance(v, np.ndarray):
-            # support only for dim=0
-            assert dim == 0, "numpy.ndarray supports only for dim=0 split"
-            dsplit[k] = np.array_split(v, range(size, v.shape[0], size), axis=0)
-        elif isinstance(v, list):
-            # support only for dim=0
-            assert dim == 0, "list supports only for dim=0 split"
-            dsplit[k] = [v[i:i+size] for i in range(0, len(v), size)]
-        else:
-            raise TypeError(f"Unsupported type for split_batch: {type(v)}")
-    # dsplit = {k: torch.split(v, size, dim) for k,v in tdict.items()}
-    nsecs = [len(v) for k, v in dsplit.items() if k not in global_keys]
-    assert all(ns == nsecs[0] for ns in nsecs)
-    return [
-        {k: (v[i] if k not in global_keys else v) for k, v in dsplit.items()}
-        for i in range(nsecs[0])
-    ]
-
-def generalized_eigh(h,L_inv):
-    symm_h=L_inv @ h @ L_inv.mT
-    e,v=torch.linalg.eigh(symm_h)
-    phi=L_inv.mT @ v 
-    return e,phi
 
 class Reader(object):
     def __init__(self, data_path, batch_size, 
-                 e_name="l_e_delta", d_name="dm_eig", 
-                 f_name="l_f_delta", gvx_name="grad_vx", 
-                 s_name="l_s_delta", gvepsl_name="grad_vepsl", 
-                 o_name="l_o_delta", op_name="orbital_precalc",
-                 h_name="l_h_delta", vdp_name="v_delta_precalc",
-                 vdrp_name="vdr_precalc", phialpha_name="phialpha",
-                 gevdm_name="grad_evdm", hr_name="l_hr_delta",
-                 h_base_name="h_base", h_ref_name="hamiltonian",
-                 read_overlap = False, overlap_name="overlap",
-                 eg_name="eg_base", gveg_name="grad_veg", 
-                 gldv_name="grad_ldv", conv_name="conv", 
-                 atom_name="atom", box_name="box", 
+                 e_name=DEFAULT_READER_FIELD_NAMES.e_name,
+                 d_name=DEFAULT_READER_FIELD_NAMES.d_name,
+                 f_name=DEFAULT_READER_FIELD_NAMES.f_name,
+                 gvx_name=DEFAULT_READER_FIELD_NAMES.gvx_name,
+                 s_name=DEFAULT_READER_FIELD_NAMES.s_name,
+                 gvepsl_name=DEFAULT_READER_FIELD_NAMES.gvepsl_name,
+                 o_name=DEFAULT_READER_FIELD_NAMES.o_name,
+                 op_name=DEFAULT_READER_FIELD_NAMES.op_name,
+                 h_name=DEFAULT_READER_FIELD_NAMES.h_name,
+                 vdp_name=DEFAULT_READER_FIELD_NAMES.vdp_name,
+                 vdrp_name=DEFAULT_READER_FIELD_NAMES.vdrp_name,
+                 phialpha_name=DEFAULT_READER_FIELD_NAMES.phialpha_name,
+                 gevdm_name=DEFAULT_READER_FIELD_NAMES.gevdm_name,
+                 hr_name=DEFAULT_READER_FIELD_NAMES.hr_name,
+                 h_base_name=DEFAULT_READER_FIELD_NAMES.h_base_name,
+                 h_ref_name=DEFAULT_READER_FIELD_NAMES.h_ref_name,
+                 read_overlap=False,
+                 overlap_name=DEFAULT_READER_FIELD_NAMES.overlap_name,
+                 eg_name=DEFAULT_READER_FIELD_NAMES.eg_name,
+                 gveg_name=DEFAULT_READER_FIELD_NAMES.gveg_name,
+                 gldv_name=DEFAULT_READER_FIELD_NAMES.gldv_name,
+                 conv_name=DEFAULT_READER_FIELD_NAMES.conv_name,
+                 atom_name=DEFAULT_READER_FIELD_NAMES.atom_name,
+                 box_name=DEFAULT_READER_FIELD_NAMES.box_name,
                  orb_list=None, alpha_list=None, **kwargs):
         self.data_path = data_path
         self.batch_size = batch_size
-        self.e_path = self.check_exist(e_name+".npy")
-        self.f_path = self.check_exist(f_name+".npy")
-        self.s_path = self.check_exist(s_name+".npy")
-        self.o_path = self.check_exist(o_name+".npy")
-        self.h_path = self.check_exist(h_name+".npy")
-        self.hr_path = self.check_exist(hr_name+".npy")
-        self.h_base_path = self.check_exist(h_base_name+".npy")
-        self.h_ref_path = self.check_exist(h_ref_name+".npy")
-        self.overlap_path = self.check_exist(overlap_name+".npy")
-        self.phialpha_path = self.check_exist(phialpha_name+".npy")
-        self.gevdm_path = self.check_exist(gevdm_name+".npy")
-        self.d_path = self.check_exist(d_name+".npy")
-        self.gvx_path = self.check_exist(gvx_name+".npy")
-        self.gvepsl_path = self.check_exist(gvepsl_name+".npy")
-        self.op_path = self.check_exist(op_name+".npy")
-        self.vdp_path = self.check_exist(vdp_name+".npy")
-        self.vdrp_path = self.check_exist(vdrp_name+".npy")
-        self.eg_path = self.check_exist(eg_name+".npy")
-        self.gveg_path = self.check_exist(gveg_name+".npy")
-        self.gldv_path = self.check_exist(gldv_name+".npy")
-        self.c_path = self.check_exist(conv_name+".npy")
-        self.a_path = self.check_exist(atom_name+".npy")
-        self.b_path = self.check_exist(box_name+".npy")
+        field_names = ReaderFieldNames(
+            e_name=e_name,
+            d_name=d_name,
+            f_name=f_name,
+            gvx_name=gvx_name,
+            s_name=s_name,
+            gvepsl_name=gvepsl_name,
+            o_name=o_name,
+            op_name=op_name,
+            h_name=h_name,
+            vdp_name=vdp_name,
+            vdrp_name=vdrp_name,
+            phialpha_name=phialpha_name,
+            gevdm_name=gevdm_name,
+            hr_name=hr_name,
+            h_base_name=h_base_name,
+            h_ref_name=h_ref_name,
+            overlap_name=overlap_name,
+            eg_name=eg_name,
+            gveg_name=gveg_name,
+            gldv_name=gldv_name,
+            conv_name=conv_name,
+            atom_name=atom_name,
+            box_name=box_name,
+        )
+        for path_name, path in resolve_reader_paths(self.data_path, field_names).items():
+            setattr(self, path_name, path)
+
+        self.system_raw_path = os.path.join(self.data_path, "system.raw")
         self.read_overlap = read_overlap
         self.orb_list = ["../../" + orb for orb in orb_list] if orb_list is not None else None
         self.alpha_list = ["../../" + alpha for alpha in alpha_list] if alpha_list is not None else None
@@ -93,16 +79,9 @@ class Reader(object):
         # initialize sample index queue
         self.idx_queue = []
 
-    def check_exist(self, fname):
-        if fname is None:
-            return None
-        fpath = os.path.join(self.data_path, fname)
-        if os.path.exists(fpath):
-            return fpath
-
     def load_meta(self):
         try:
-            sys_meta = np.loadtxt(self.check_exist('system.raw'), converters = float).astype(int).reshape([-1])
+            sys_meta = np.loadtxt(self.system_raw_path, converters=float).astype(int).reshape([-1])
             self.natm = sys_meta[0]
             self.nproj = sys_meta[-1]
         except:
@@ -526,8 +505,11 @@ class GroupReader(object) :
 
 class SimpleReader(object):
     def __init__(self, data_path, batch_size, 
-                 e_name="l_e_delta", d_name="dm_eig", 
-                 conv_filter=True, conv_name="conv", **kwargs):
+                 e_name=DEFAULT_READER_FIELD_NAMES.e_name,
+                 d_name=DEFAULT_READER_FIELD_NAMES.d_name,
+                 conv_filter=True,
+                 conv_name=DEFAULT_READER_FIELD_NAMES.conv_name,
+                 **kwargs):
         # copy from config
         self.data_path = data_path
         self.batch_size = batch_size
