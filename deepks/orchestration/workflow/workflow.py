@@ -67,11 +67,8 @@ class Workflow(AbstructStep):
                     print_prefix += "║"
                 for j in range(self.max_depth()-1):
                     print_suffix += "═"
-                if not print_restart:
-                    print(print_prefix + "╚" + print_suffix + " [        FINISH ] " + str(parent_tag + (last_idx,)))
-                else:
-                    print(print_prefix + "╚" + print_suffix + " [ RESTART       ] " + str(parent_tag + (last_idx,)))
-                    print_restart = False
+                print(print_prefix + "╚" + print_suffix + " [        FINISH ] " + str(parent_tag + (last_idx,)))
+                print_restart = False
         for i in range(start_idx, len(self.child_tasks)):
             curr_tag = parent_tag + (i,)
             print_prefix = ""
