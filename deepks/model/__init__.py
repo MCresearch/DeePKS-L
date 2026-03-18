@@ -10,7 +10,7 @@ __all__ = [
 def __getattr__(name):
     from importlib import import_module
     if name == "CorrNet":
-        from .model import CorrNet
+        from deepks.core.ml.models.corrnet import CorrNet
         return CorrNet
     if name in __all__:
         return import_module("." + name, __name__)

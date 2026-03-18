@@ -8,7 +8,7 @@ except ImportError as e:
     import sys
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 from deepks.default import DEVICE
-from deepks.model.model import CorrNet
+from deepks.core.ml.models.corrnet import CorrNet
 from deepks.io.readers.group_reader import GroupReader
 from deepks.utils import load_yaml, load_dirs, check_list
 

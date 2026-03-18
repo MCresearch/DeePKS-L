@@ -9,7 +9,7 @@ try:
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 from deepks.default import DEVICE
-from deepks.model.model import CorrNet
+from deepks.core.ml.models.corrnet import CorrNet
 from deepks.io.readers.group_reader import GroupReader
 from deepks.utils import load_dirs, load_elem_table
 from deepks.model.utils import preprocess, fit_elem_const, make_loss

@@ -12,7 +12,7 @@ from deepks.default import DEFAULT_UNIT, DEFAULT_FNAMES, DEFAULT_HF_ARGS, DEFAUL
 from deepks.scf.scf import DSCF, UDSCF
 from deepks.scf.fields import select_fields
 from deepks.scf.penalty import select_penalty
-from deepks.model.model import CorrNet
+from deepks.core.ml.models.corrnet import CorrNet
 from deepks.utils import check_list, flat_file_list
 from deepks.utils import is_xyz, load_sys_paths
 from deepks.utils import load_yaml, load_array

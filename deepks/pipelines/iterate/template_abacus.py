@@ -97,7 +97,7 @@ def convert_data(systems_train, systems_test=None, *,
     #trace a model (if necessary)
     if not no_model:
         if model_file is not None:
-            from deepks.model import CorrNet
+            from deepks.core.ml.models.corrnet import CorrNet
             model = CorrNet.load(model_file)
             model.compile_save(CMODEL_FILE)
             #set 'deepks_scf' to 1, and give abacus the path of traced model file

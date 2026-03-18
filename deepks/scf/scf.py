@@ -10,7 +10,7 @@ from pyscf import scf, dft
 # from deepks.default import DEVICE
 DEVICE = 'cpu' # temporarily not use deepks.default.DEVICE
 from deepks.utils import load_basis, get_shell_sec
-from deepks.model.model import CorrNet
+from deepks.core.ml.models.corrnet import CorrNet
 from deepks.scf.penalty import PenaltyMixin
 
 # all variables and functions start with "t_" are torch based.
