@@ -3,6 +3,7 @@ import sys
 import numpy as np
 
 from deepks.io.readers.reader import Reader
+from deepks.io.readers.sampling import build_group_sampling_cache, build_system_probabilities
 from deepks.io.readers.stats import (
     collect_elems,
     compute_data_stat,
@@ -37,8 +38,7 @@ class GroupReader(object):
         print(f"# load {self.nsystems} systems with fields {list(dict.fromkeys(data_keys))}")
         # probability of each system
         self.ndesc = self.readers[0].ndesc
-        self.sys_prob = np.asarray(self.nframes, dtype=float)
-        self.sys_prob = self.sys_prob / self.sys_prob.sum()
+        self.sys_prob = build_system_probabilities(self.nframes)
 
         self.group_batch = max(group_batch, 1)
         if self.group_batch > 1:
@@ -57,31 +57,15 @@ class GroupReader(object):
         self._sample_used += sample["lb_e"].shape[0]
         return sample
 
-    @staticmethod
-    def _reader_shape(reader):
-        return (reader.natm, getattr(reader, "neg", None))
-
     def _build_group_sampling_cache(self):
         """Cache grouped readers and sampling probabilities for grouped batches."""
-        self.group_dict = {}
-        for reader in self.readers:
-            shape = self._reader_shape(reader)
-            self.group_dict.setdefault(shape, []).append(reader)
-
-        total_frames = float(np.sum(self.nframes))
-        self.group_prob = {
-            shape: sum(reader.nframes for reader in readers) / total_frames
-            for shape, readers in self.group_dict.items()
-        }
-        self.batch_prob_raw = {
-            shape: np.asarray([reader.nframes / reader.batch_size for reader in readers], dtype=float)
-            for shape, readers in self.group_dict.items()
-        }
-        self.batch_prob = {shape: probs / probs.sum() for shape, probs in self.batch_prob_raw.items()}
-
-        # Avoid rebuilding dict key/value lists on every sample.
-        self._group_shapes = tuple(self.group_prob.keys())
-        self._group_probs = np.asarray(list(self.group_prob.values()), dtype=float)
+        cache = build_group_sampling_cache(self.readers)
+        self.group_dict = cache["group_dict"]
+        self.group_prob = cache["group_prob"]
+        self.batch_prob_raw = cache["batch_prob_raw"]
+        self.batch_prob = cache["batch_prob"]
+        self._group_shapes = cache["group_shapes"]
+        self._group_probs = cache["group_probs"]
 
     def sample_idx(self):
         """
