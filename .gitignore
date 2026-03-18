@@ -59,5 +59,8 @@ ABACUS/
 
 # tests
 tests/ 
-iter*
+# Ignore top-level iteration artifacts only (do not hide source package paths).
+/iter*
+!deepks/pipelines/iterate/
+!deepks/pipelines/iterate/**
 model.pt*
