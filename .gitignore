@@ -63,4 +63,6 @@ tests/
 /iter*
 !deepks/pipelines/iterate/
 !deepks/pipelines/iterate/**
+deepks/pipelines/iterate/__pycache__/
+deepks/pipelines/iterate/*.pyc
 model.pt*
