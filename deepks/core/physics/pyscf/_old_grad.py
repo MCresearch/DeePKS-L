@@ -207,6 +207,6 @@ def finite_difference(f, x, delta=1e-6):
 
 Grad = Gradients
 
-# from deepks.scf.scf import DSCF
+# from deepks.core.physics.pyscf.scf import DSCF
 # # Inject to SCF class
 # DSCF.Gradients = lib.class_as_method(Gradients)

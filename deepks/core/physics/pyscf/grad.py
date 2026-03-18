@@ -211,7 +211,7 @@ class NetGradMixin(CorrGradMixin):
         return scanner
 
     # additional methods for dm training impl'd in addons
-    # from deepks.scf.addons import gcalc_optim_veig as calc_optim_veig
+    # from deepks.core.physics.pyscf.addons import gcalc_optim_veig as calc_optim_veig
 
 
 def build_grad(mf):

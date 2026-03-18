@@ -10,11 +10,11 @@ import importlib
 
 import pytest
 
-import deepks.iterate.generator_abacus as iter_gen_shim
-import deepks.iterate.iterate as iter_iter_shim
-import deepks.iterate.template as iter_template_shim
-import deepks.iterate.template_abacus as iter_template_abacus_shim
-import deepks.iterate.utils as iter_utils_shim
+import deepks.pipelines.iterate.generator_abacus as iter_gen_shim
+import deepks.pipelines.iterate.iterate as iter_iter_shim
+import deepks.pipelines.iterate.template as iter_template_shim
+import deepks.pipelines.iterate.template_abacus as iter_template_abacus_shim
+import deepks.pipelines.iterate.utils as iter_utils_shim
 
 
 def test_iterate_shim_exports():
@@ -31,34 +31,26 @@ def test_iterate_shim_exports():
     assert iter_utils_shim.NPY_DICT is iter_utils_impl.NPY_DICT
 
 
-def test_scf_shims_import_is_lazy():
-    # Importing compatibility shims should not require optional pyscf dependency.
-    modules = [
-        "deepks.scf._old_grad",
-        "deepks.scf.addons",
-        "deepks.scf.fields",
-        "deepks.scf.grad",
-        "deepks.scf.penalty",
-        "deepks.scf.run",
-        "deepks.scf.scf",
-        "deepks.scf.stats",
-    ]
+def test_scf_package_import_without_pyscf():
+    # Package-level import should remain lightweight in environments without pyscf.
+    assert importlib.import_module("deepks.pipelines.scf").__name__ == "deepks.pipelines.scf"
+    assert importlib.import_module("deepks.pipelines.scf.stats").__name__ == "deepks.pipelines.scf.stats"
 
-    for module in modules:
-        assert importlib.import_module(module).__name__ == module
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("deepks.pipelines.scf.run")
 
 
 def test_scf_shim_exports():
     pytest.importorskip("pyscf")
 
-    import deepks.scf._old_grad as scf_old_grad_shim
-    import deepks.scf.addons as scf_addons_shim
-    import deepks.scf.fields as scf_fields_shim
-    import deepks.scf.grad as scf_grad_shim
-    import deepks.scf.penalty as scf_penalty_shim
-    import deepks.scf.run as scf_run_shim
-    import deepks.scf.scf as scf_core_shim
-    import deepks.scf.stats as scf_stats_shim
+    import deepks.core.physics.pyscf._old_grad as scf_old_grad_shim
+    import deepks.core.physics.pyscf.addons as scf_addons_shim
+    import deepks.core.physics.pyscf.fields as scf_fields_shim
+    import deepks.core.physics.pyscf.grad as scf_grad_shim
+    import deepks.core.physics.pyscf.penalty as scf_penalty_shim
+    import deepks.pipelines.scf.run as scf_run_shim
+    import deepks.core.physics.pyscf.scf as scf_core_shim
+    import deepks.pipelines.scf.stats as scf_stats_shim
 
     scf_core_impl = importlib.import_module("deepks.core.physics.pyscf.scf")
     scf_run_impl = importlib.import_module("deepks.core.physics.pyscf.run")

@@ -5,7 +5,7 @@ from pathlib import Path
 import deepks.pipelines.iterate.iterate as iterate_mod
 import pytest
 
-from deepks.iterate.iterate import main as iter_main
+from deepks.pipelines.iterate.iterate import main as iter_main
 from deepks.orchestration.workflow.task import PythonTask
 from deepks.utils import load_yaml
 

@@ -1,5 +1,5 @@
 """
-整体覆盖：PySCF 接口侧 `deepks.scf.fields` 的字段选择与单位辅助函数。
+整体覆盖：PySCF 接口侧 `deepks.core.physics.pyscf.fields` 的字段选择与单位辅助函数。
 
 说明：
 - 本文件属于 PySCF 接口测试；
@@ -21,12 +21,12 @@ import pytest
 
 pytest.importorskip("pyscf")
 from deepks.default import BOHR2ANG
-from deepks.scf.fields import _Lunit, atom_data, isinbohr, select_fields
+from deepks.core.physics.pyscf.fields import _Lunit, atom_data, isinbohr, select_fields
 
 
 def test_select_fields_by_name_and_alias():
 	"""
-	依赖：`deepks.scf.fields.select_fields`。
+	依赖：`deepks.core.physics.pyscf.fields.select_fields`。
 	测试内容：支持按字段名与别名选择，并正确分流到 scf/grad 两类。
 	"""
 	sel = select_fields(["e_tot", "gvx", "force"])
@@ -39,7 +39,7 @@ def test_select_fields_by_name_and_alias():
 
 def test_select_fields_case_insensitive():
 	"""
-	依赖：`deepks.scf.fields.select_fields`。
+	依赖：`deepks.core.physics.pyscf.fields.select_fields`。
 	测试内容：字段选择应大小写不敏感。
 	"""
 	sel = select_fields(["E_TOT", "ConVerGed"])
@@ -50,7 +50,7 @@ def test_select_fields_case_insensitive():
 
 def test_isinbohr_and_lunit():
 	"""
-	依赖：`deepks.scf.fields.isinbohr/_Lunit`。
+	依赖：`deepks.core.physics.pyscf.fields.isinbohr/_Lunit`。
 	测试内容：Bohr/AU 单位返回 1；Angstrom 返回 `BOHR2ANG`。
 	"""
 	class Mol:
@@ -70,7 +70,7 @@ def test_isinbohr_and_lunit():
 
 def test_atom_data_filters_ghost_atoms():
 	"""
-	依赖：`deepks.scf.fields.atom_data`。
+	依赖：`deepks.core.physics.pyscf.fields.atom_data`。
 	测试内容：应过滤掉元素名以 `X` 开头的 ghost atom。
 	"""
 	class Mol:

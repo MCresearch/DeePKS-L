@@ -284,9 +284,9 @@ class NetMixin(CorrMixin):
         return proj.reshape(nao, natm, pnao // natm)
 
     # additional methods for dm training impl'd in addons
-    # from deepks.scf.addons import make_grad_eig_egrad
-    # from deepks.scf.addons import make_grad_coul_veig
-    # from deepks.scf.addons import calc_optim_veig
+    # from deepks.core.physics.pyscf.addons import make_grad_eig_egrad
+    # from deepks.core.physics.pyscf.addons import make_grad_coul_veig
+    # from deepks.core.physics.pyscf.addons import calc_optim_veig
         
 
 class DSCF(NetMixin, PenaltyMixin, dft.rks.RKS):

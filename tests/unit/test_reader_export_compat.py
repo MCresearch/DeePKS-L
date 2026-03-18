@@ -11,9 +11,9 @@ from deepks.io.readers import SimpleReader as SimpleReaderPkg
 from deepks.io.readers.group_reader import GroupReader as GroupReaderLegacy
 from deepks.io.readers.group_reader import Reader as ReaderLegacy
 from deepks.io.readers.group_reader import SimpleReader as SimpleReaderLegacy
-from deepks.model.reader import GroupReader as GroupReaderModelShim
-from deepks.model.reader import Reader as ReaderModelShim
-from deepks.model.reader import SimpleReader as SimpleReaderModelShim
+from deepks.io.readers import GroupReader as GroupReaderModelShim
+from deepks.io.readers import Reader as ReaderModelShim
+from deepks.io.readers import SimpleReader as SimpleReaderModelShim
 
 
 def test_reader_export_identity():

@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.model.reader.GroupReader` 抽样与批处理行为。
+整体覆盖：`deepks.io.readers.GroupReader` 抽样与批处理行为。
 
 测试列表：
 - `test_groupreader_prob_and_grouping`
@@ -8,7 +8,7 @@
 
 import numpy as np
 
-from deepks.model.reader import GroupReader
+from deepks.io.readers import GroupReader
 
 
 def _make_sys(path, nframe, natm, ndesc):
@@ -19,7 +19,7 @@ def _make_sys(path, nframe, natm, ndesc):
 
 def test_groupreader_prob_and_grouping(tmp_path):
 	"""
-	依赖：`deepks.model.reader.GroupReader`。
+	依赖：`deepks.io.readers.GroupReader`。
 	测试内容：验证系统概率与按 shape 分组逻辑正确。
 	"""
 	s1 = tmp_path / "g1"
@@ -38,7 +38,7 @@ def test_groupreader_prob_and_grouping(tmp_path):
 
 def test_groupreader_sample_all_batch(tmp_path):
 	"""
-	依赖：`deepks.model.reader.GroupReader.sample_all_batch`。
+	依赖：`deepks.io.readers.GroupReader.sample_all_batch`。
 	测试内容：验证可按 batch 迭代返回全量数据，且字段形状正确。
 	"""
 	s1 = tmp_path / "g1"

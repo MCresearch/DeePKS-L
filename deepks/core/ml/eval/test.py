@@ -89,5 +89,5 @@ def main(data_paths, model_file="model.pth",
 
 
 if __name__ == "__main__":
-    from deepks.main import test_cli as cli
+    from deepks.cli.main import test_cli as cli
     cli()

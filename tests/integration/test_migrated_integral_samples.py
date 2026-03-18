@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from deepks.model.test import main as model_test_main
-from deepks.model.train import main as train_main
-from deepks.scf.stats import print_stats as stats_main
+from deepks.pipelines.train.test import main as model_test_main
+from deepks.pipelines.train.train import main as train_main
+from deepks.pipelines.scf.stats import print_stats as stats_main
 from deepks.utils import load_yaml
 
 
@@ -44,7 +44,7 @@ def _legacy_integral_fixture_root() -> Path:
 
 def test_migrated_integral_stats_sample(tmp_path):
     """
-    依赖：`deepks.scf.stats.print_stats` 与迁移样例 `tests/fixtures/legacy_integral/04_stats/stats_input.yaml`。
+    依赖：`deepks.pipelines.scf.stats.print_stats` 与迁移样例 `tests/fixtures/legacy_integral/04_stats/stats_input.yaml`。
     测试内容：迁移历史 stats 样例，验证关键输出字段与参考值一致。
     """
     base = _legacy_integral_fixture_root() / "04_stats"
@@ -78,7 +78,7 @@ def test_migrated_integral_scf_placeholder_sample():
 @pytest.mark.pyabacus
 def test_migrated_integral_train_sample_if_pyabacus(tmp_path):
     """
-    依赖：`pyabacus`（可选）、`deepks.model.train.main` 与迁移样例 `train_input.yaml`。
+    依赖：`pyabacus`（可选）、`deepks.pipelines.train.train.main` 与迁移样例 `train_input.yaml`。
     测试内容：迁移历史 train 样例，验证末尾关键 loss 指标与参考值一致。
     """
     if not _has_module("pyabacus"):
@@ -99,7 +99,7 @@ def test_migrated_integral_train_sample_if_pyabacus(tmp_path):
 @pytest.mark.pyabacus
 def test_migrated_integral_test_sample_if_pyabacus(tmp_path):
     """
-    依赖：`pyabacus`（可选）、`deepks.model.test.main` 与迁移样例 `test_input.yaml`。
+    依赖：`pyabacus`（可选）、`deepks.pipelines.train.test.main` 与迁移样例 `test_input.yaml`。
     测试内容：迁移历史 test 样例，验证最终 loss 输出与参考值一致。
     """
     if not _has_module("pyabacus"):

@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.model.evaluator.Evaluator` 的多损失开关组合。
+整体覆盖：`deepks.core.ml.eval.evaluator.Evaluator` 的多损失开关组合。
 
 测试列表：
 - `test_evaluator_energy_only`
@@ -13,7 +13,7 @@ import torch.nn as nn
 pytest.importorskip("pyabacus")
 pytestmark = pytest.mark.pyabacus
 
-from deepks.model.evaluator import Evaluator
+from deepks.core.ml.eval.evaluator import Evaluator
 
 
 class SumModel(nn.Module):
@@ -27,7 +27,7 @@ class SumModel(nn.Module):
 
 def test_evaluator_energy_only():
 	"""
-	依赖：`deepks.model.evaluator.Evaluator`。
+	依赖：`deepks.core.ml.eval.evaluator.Evaluator`。
 	测试内容：仅能量损失开启时，返回 `[e_loss, tot_loss]` 两项且二者相等。
 	"""
 	model = SumModel().double()
@@ -43,7 +43,7 @@ def test_evaluator_energy_only():
 
 def test_evaluator_energy_force_stress_switches():
 	"""
-	依赖：`deepks.model.evaluator.Evaluator`。
+	依赖：`deepks.core.ml.eval.evaluator.Evaluator`。
 	测试内容：能量+力+应力开启时，输出应包含对应三项及总损失。
 	"""
 	b, natm, ndesc = 2, 2, 3

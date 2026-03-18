@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.model.utils` 中损失函数行为。
+整体覆盖：`deepks.core.ml.utils` 中损失函数行为。
 
 测试列表：
 - `test_make_loss_mean_sum_none_batch`
@@ -13,12 +13,12 @@ import torch
 
 pytest.importorskip("pyabacus")
 
-from deepks.model.utils import loss_hr, make_loss
+from deepks.core.ml.utils import loss_hr, make_loss
 
 
 def test_make_loss_mean_sum_none_batch():
 	"""
-	依赖：`deepks.model.utils.make_loss`。
+	依赖：`deepks.core.ml.utils.make_loss`。
 	测试内容：验证 reduction=`mean/sum/none/batch` 的数值语义。
 	"""
 	inp = torch.tensor([[1.0, 2.0], [3.0, 5.0]])
@@ -33,7 +33,7 @@ def test_make_loss_mean_sum_none_batch():
 
 def test_make_loss_with_shrink_and_cap():
 	"""
-	依赖：`deepks.model.utils.make_loss`。
+	依赖：`deepks.core.ml.utils.make_loss`。
 	测试内容：验证 `shrink` 与 `cap` 同时启用时，输出符合实现定义（softshrink + smooth cap）。
 	"""
 	inp = torch.tensor([0.0, 0.0, 0.0])
@@ -50,7 +50,7 @@ def test_make_loss_with_shrink_and_cap():
 
 def test_make_loss_invalid_reduction_raises():
 	"""
-	依赖：`deepks.model.utils.make_loss`。
+	依赖：`deepks.core.ml.utils.make_loss`。
 	测试内容：非法 reduction 应抛出 `ValueError`。
 	"""
 	fn = make_loss(reduction="bad")
@@ -60,7 +60,7 @@ def test_make_loss_invalid_reduction_raises():
 
 def test_loss_hr_formula():
 	"""
-	依赖：`deepks.model.utils.loss_hr`。
+	依赖：`deepks.core.ml.utils.loss_hr`。
 	测试内容：验证 `loss_hr = sum(|diff|^2) / R_range / nlocal / nframe`。
 	"""
 	# shape: [nframe=2, R=2, R=2, R=2, nlocal=2, nlocal=2]

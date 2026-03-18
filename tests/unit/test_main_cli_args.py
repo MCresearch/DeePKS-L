@@ -7,12 +7,12 @@
 - `test_main_cli_unknown_command_returns_valueerror_obj`
 """
 
-import deepks.main as m
+import deepks.cli.main as m
 
 
 def test_main_cli_dispatch_train(monkeypatch):
 	"""
-	依赖：`deepks.main.main_cli` 与 `monkeypatch`。
+	依赖：`deepks.cli.main.main_cli` 与 `monkeypatch`。
 	测试内容：输入 `train` 时，命令被分发至 `train_cli` 且参数保持原样。
 	"""
 	captured = {}
@@ -30,7 +30,7 @@ def test_main_cli_dispatch_train(monkeypatch):
 
 def test_main_cli_dispatch_iterate_alias(monkeypatch):
 	"""
-	依赖：`deepks.main.main_cli` 与 `monkeypatch`。
+	依赖：`deepks.cli.main.main_cli` 与 `monkeypatch`。
 	测试内容：`iter` 别名应分发到 `iter_cli`。
 	"""
 	captured = {}
@@ -48,7 +48,7 @@ def test_main_cli_dispatch_iterate_alias(monkeypatch):
 
 def test_main_cli_unknown_command_returns_valueerror_obj():
 	"""
-	依赖：`deepks.main.main_cli`。
+	依赖：`deepks.cli.main.main_cli`。
 	测试内容：未知命令保持当前兼容行为（返回 `ValueError` 对象）。
 	"""
 	res = m.main_cli(["unknown-cmd"])

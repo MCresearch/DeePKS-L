@@ -303,5 +303,5 @@ def collect_data_grouped(train_idx, test_idx=None,
 
 
 if __name__ == "__main__":
-    from deepks.main import stats_cli as cli
+    from deepks.cli.main import stats_cli as cli
     cli()

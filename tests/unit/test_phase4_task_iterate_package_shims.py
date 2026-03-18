@@ -1,29 +1,29 @@
-"""Compatibility coverage for phase-4 task/iterate package shims."""
+"""Import coverage for canonical orchestration/pipeline packages."""
 
 import importlib
 
 
 def test_task_package_exports():
-    task_pkg = importlib.import_module("deepks.task")
+    task_pkg = importlib.import_module("deepks.orchestration.workflow.task")
     task_impl = importlib.import_module("deepks.orchestration.workflow.task")
     workflow_impl = importlib.import_module("deepks.orchestration.workflow.workflow")
 
-    assert task_pkg.__all__ == ["task", "workflow", "job"]
     assert task_pkg.PythonTask is task_impl.PythonTask
-    assert task_pkg.Sequence is workflow_impl.Sequence
+    assert task_pkg.GroupBatchTask.__module__ == "deepks.orchestration.workflow.task"
+    assert workflow_impl.Sequence.__module__ == "deepks.orchestration.workflow.workflow"
 
 
 def test_task_job_package_exports():
-    job_pkg = importlib.import_module("deepks.task.job")
-    dispatcher_impl = importlib.import_module("deepks.orchestration.scheduler.job.dispatcher")
+    job_pkg = importlib.import_module("deepks.orchestration.scheduler.job")
+    dispatcher_mod = importlib.import_module("deepks.orchestration.scheduler.job.dispatcher")
 
-    assert job_pkg.dispatcher.__name__ == "deepks.task.job.dispatcher"
-    assert job_pkg.Dispatcher is dispatcher_impl.Dispatcher
-    assert job_pkg._split_tasks is dispatcher_impl._split_tasks
+    assert job_pkg.__name__ == "deepks.orchestration.scheduler.job"
+    assert dispatcher_mod.Dispatcher.__module__ == "deepks.orchestration.scheduler.job.dispatcher"
+    assert dispatcher_mod._split_tasks.__module__ == "deepks.orchestration.scheduler.job.dispatcher"
 
 
 def test_iterate_package_exports():
-    iterate_pkg = importlib.import_module("deepks.iterate")
+    iterate_pkg = importlib.import_module("deepks.pipelines.iterate")
     iterate_impl = importlib.import_module("deepks.pipelines.iterate.iterate")
 
     assert iterate_pkg.__all__ == ["iterate", "template", "template_abacus", "generator_abacus"]
@@ -34,9 +34,8 @@ def test_iterate_package_exports():
 
 
 def test_iterate_package_submodule_lookup():
-    iterate_pkg = importlib.import_module("deepks.iterate")
+    iterate_pkg = importlib.import_module("deepks.pipelines.iterate")
 
-    assert iterate_pkg.iterate.__name__ == "deepks.iterate.iterate"
-    assert iterate_pkg.template.__name__ == "deepks.iterate.template"
-    assert iterate_pkg.template_abacus.__name__ == "deepks.iterate.template_abacus"
-    assert iterate_pkg.generator_abacus.__name__ == "deepks.iterate.generator_abacus"
+    assert iterate_pkg.make_iterate.__module__ == "deepks.pipelines.iterate.iterate"
+    assert iterate_pkg.make_scf.__module__ == "deepks.pipelines.iterate.template"
+    assert iterate_pkg.make_scf_abacus.__module__ == "deepks.pipelines.iterate.template_abacus"

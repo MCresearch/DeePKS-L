@@ -124,7 +124,7 @@ To manually convert ``model.pth`` to ``model.ptg``, one needs to run the followi
   import torch
   import torch.nn as nn
   from torch.nn import functional as F
-  from deepks.model import CorrNet
+  from deepks.core.ml.models.corrnet import CorrNet
   mp = CorrNet.load("model.pth")
   mp.compile_save("model.ptg")
 

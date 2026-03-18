@@ -7,8 +7,8 @@
 
 from pathlib import Path
 
-from deepks.task.task import PythonTask
-from deepks.task.workflow import Iteration, Sequence
+from deepks.orchestration.workflow.task import PythonTask
+from deepks.orchestration.workflow.workflow import Iteration, Sequence
 
 
 def _mark(name):
@@ -18,7 +18,7 @@ def _mark(name):
 
 def test_iteration_restart_from_record(tmp_path, monkeypatch):
     """
-    依赖：`deepks.task.workflow.Iteration/Sequence` 与 `PythonTask`。
+    依赖：`deepks.orchestration.workflow.workflow.Iteration/Sequence` 与 `PythonTask`。
     测试内容：模拟已有 RECORD 的中断场景，验证重启后仅补齐未完成步骤。
     """
     monkeypatch.chdir(tmp_path)

@@ -6,11 +6,13 @@ except ImportError:
     __version__ = 'unknown'
 
 __all__ = [
-    "iterate",
-    "model",
-    "scf",
-    "task",
-    # "tools" # collection of command line scripts, should not be imported by user
+    "cli",
+    "compat",
+    "core",
+    "io",
+    "orchestration",
+    "pipelines",
+    "tools",
 ]
 
 def __getattr__(name):

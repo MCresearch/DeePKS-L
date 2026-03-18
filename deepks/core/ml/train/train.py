@@ -245,5 +245,5 @@ def main(train_paths, test_paths=None,
 
 
 if __name__ == "__main__":
-    from deepks.main import train_cli as cli
+    from deepks.cli.main import train_cli as cli
     cli()

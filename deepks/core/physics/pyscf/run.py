@@ -250,5 +250,5 @@ def main(systems, model_file="model.pth", basis='ccpvdz',
 
 
 if __name__ == "__main__":
-    from deepks.main import scf_cli as cli
+    from deepks.cli.main import scf_cli as cli
     cli()

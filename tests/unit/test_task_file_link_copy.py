@@ -7,7 +7,7 @@
 
 from pathlib import Path
 
-from deepks.task.task import BlankTask
+from deepks.orchestration.workflow.task import BlankTask
 
 
 def _write(p: Path, txt: str):
@@ -17,7 +17,7 @@ def _write(p: Path, txt: str):
 
 def test_task_preprocess_link_and_copy(tmp_path):
 	"""
-	依赖：`deepks.task.task.BlankTask`、本地文件系统（tmp_path）。
+	依赖：`deepks.orchestration.workflow.task.BlankTask`、本地文件系统（tmp_path）。
 	测试内容：验证 `prev/share/abs` 三类来源在 link/copy 模式下均按预期落盘。
 	"""
 	prev = tmp_path / "prev"

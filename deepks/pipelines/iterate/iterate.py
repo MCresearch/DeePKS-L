@@ -355,5 +355,5 @@ def main(*args, **kwargs):
 
 
 if __name__ == "__main__":
-    from deepks.main import iter_cli as cli
+    from deepks.cli.main import iter_cli as cli
     cli()

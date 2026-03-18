@@ -9,7 +9,7 @@
 
 import numpy as np
 
-from deepks.iterate.generator_abacus import (
+from deepks.pipelines.iterate.generator_abacus import (
 	make_abacus_scf_input,
 	make_abacus_scf_kpt,
 	make_abacus_scf_stru,
@@ -18,7 +18,7 @@ from deepks.iterate.generator_abacus import (
 
 def test_make_abacus_kpt_default_and_custom():
 	"""
-	依赖：`deepks.iterate.generator_abacus.make_abacus_scf_kpt`。
+	依赖：`deepks.pipelines.iterate.generator_abacus.make_abacus_scf_kpt`。
 	测试内容：验证默认 KPT 与自定义 k_points 生成内容。
 	"""
 	kpt_default = make_abacus_scf_kpt({})
@@ -32,7 +32,7 @@ def test_make_abacus_kpt_default_and_custom():
 
 def test_make_abacus_input_contains_key_parameters():
 	"""
-	依赖：`deepks.iterate.generator_abacus.make_abacus_scf_input`。
+	依赖：`deepks.pipelines.iterate.generator_abacus.make_abacus_scf_input`。
 	测试内容：验证 INPUT 关键参数（基组、泛函、deepks 参数）被正确写入。
 	"""
 	fp = {
@@ -67,7 +67,7 @@ def test_make_abacus_input_contains_key_parameters():
 
 def test_make_abacus_stru_with_lcao_and_descriptor():
 	"""
-	依赖：`deepks.iterate.generator_abacus.make_abacus_scf_stru`。
+	依赖：`deepks.pipelines.iterate.generator_abacus.make_abacus_scf_stru`。
 	测试内容：验证 STRU 中赝势、轨道文件、坐标与 NUMERICAL_DESCRIPTOR 段生成正确。
 	"""
 	sys_data = {

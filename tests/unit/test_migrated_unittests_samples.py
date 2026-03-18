@@ -17,8 +17,8 @@ import numpy as np
 import pytest
 import torch
 
-from deepks.model.evaluator import Evaluator, NatomLossList
-from deepks.model.reader import SimpleReader
+from deepks.core.ml.eval.evaluator import Evaluator, NatomLossList
+from deepks.io.readers import SimpleReader
 from deepks.utils import get_shell_sec
 
 
@@ -110,7 +110,7 @@ def test_migrated_model_get_shell_sec_sample():
 
 def test_migrated_simplereader_sample(tmp_path):
     """
-    依赖：`deepks.model.reader.SimpleReader`。
+    依赖：`deepks.io.readers.SimpleReader`。
     测试内容：迁移历史 `test_SimpleReader` 样例，验证最小数据读取、收敛筛选和抽样行为。
     """
     data_size = 3
@@ -184,7 +184,7 @@ def test_migrated_reader_reference_data_catalog():
 
 def test_migrated_natomlosslist_sample(capsys):
     """
-    依赖：`deepks.model.evaluator.NatomLossList`。
+    依赖：`deepks.core.ml.eval.evaluator.NatomLossList`。
     测试内容：迁移历史 `test_NatomLossList` 样例与参考数据，验证分 natom 聚合、均值统计及异常分支。
     """
     nll = NatomLossList()
@@ -237,7 +237,7 @@ def test_migrated_natomlosslist_sample(capsys):
 
 def test_migrated_evaluator_legacy_sample(capsys):
     """
-    依赖：`deepks.model.evaluator.Evaluator`。
+    依赖：`deepks.core.ml.eval.evaluator.Evaluator`。
     测试内容：迁移历史 `test_Evaluator` 的字段、参数和参考向量定义，验证损失项数量与表头输出。
     """
 

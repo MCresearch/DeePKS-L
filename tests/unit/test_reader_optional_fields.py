@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.model.reader.Reader` 在可选字段缺失时的行为。
+整体覆盖：`deepks.io.readers.Reader` 在可选字段缺失时的行为。
 
 测试列表：
 - `test_reader_minimal_fields_only`
@@ -8,12 +8,12 @@
 
 import numpy as np
 
-from deepks.model.reader import Reader
+from deepks.io.readers import Reader
 
 
 def test_reader_minimal_fields_only(tmp_path):
 	"""
-	依赖：`deepks.model.reader.Reader`。
+	依赖：`deepks.io.readers.Reader`。
 	测试内容：仅提供最小字段 `l_e_delta.npy/dm_eig.npy` 时应正常读取且不强依赖其他标签。
 	"""
 	nframe, natm, ndesc = 3, 2, 4
@@ -29,7 +29,7 @@ def test_reader_minimal_fields_only(tmp_path):
 
 def test_reader_with_conv_filter(tmp_path):
 	"""
-	依赖：`deepks.model.reader.Reader`。
+	依赖：`deepks.io.readers.Reader`。
 	测试内容：存在 `conv.npy` 时应只保留收敛帧。
 	"""
 	nframe, natm, ndesc = 4, 2, 3

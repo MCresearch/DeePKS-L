@@ -7,8 +7,8 @@
 
 from pathlib import Path
 
-from deepks.task.task import PythonTask
-from deepks.task.workflow import Sequence
+from deepks.orchestration.workflow.task import PythonTask
+from deepks.orchestration.workflow.workflow import Sequence
 
 
 def _append_line(name):
@@ -18,7 +18,7 @@ def _append_line(name):
 
 def test_sequence_chain_and_run(tmp_path, monkeypatch):
     """
-    依赖：`deepks.task.workflow.Sequence`、`deepks.task.task.PythonTask`。
+    依赖：`deepks.orchestration.workflow.workflow.Sequence`、`deepks.orchestration.workflow.task.PythonTask`。
     测试内容：验证任务链自动连接，且执行后在各子目录产生预期输出。
     """
     monkeypatch.chdir(tmp_path)
