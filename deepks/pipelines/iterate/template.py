@@ -190,7 +190,7 @@ def make_stat_scf(systems_train, systems_test=None, *,
         # if len(systems_train) > 1:
         #     del systems_train[-1]
     # load stats function
-    from deepks.scf.stats import print_stats
+    from deepks.core.physics.pyscf.stats import print_stats
     stat_args.update(
         systems=systems_train,
         test_sys=systems_test,
@@ -367,7 +367,7 @@ def make_run_train(source_train="data_train", source_test="data_test", *,
 def make_test_train(data_paths, model_file="model.pth", *,
                     output_prefix="test", group_results=True, 
                     workdir='.', outlog="log.test", **test_args):
-    from deepks.model.test import main as test_func
+    from deepks.core.ml.eval.test import main as test_func
     test_args.update(
         data_paths=data_paths,
         model_file=model_file,

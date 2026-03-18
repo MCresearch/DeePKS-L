@@ -8,7 +8,7 @@ try:
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
 from deepks.io.transforms.linalg import generalized_eigh
-from deepks.model.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss, get_gedm, cal_vdr, loss_hr
+from deepks.core.ml.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss, get_gedm, cal_vdr, loss_hr
 
 class Evaluator:
     def __init__(self,

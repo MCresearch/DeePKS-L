@@ -7,7 +7,7 @@
 import time
 import numpy as np
 from deepks.utils import load_yaml
-from deepks.scf.scf import DSCF
+from deepks.core.physics.pyscf.scf import DSCF
 from pyscf import gto, lib
 try:
     from pyscf.geomopt.berny_solver import optimize

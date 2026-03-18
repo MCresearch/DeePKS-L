@@ -1118,7 +1118,7 @@ def gather_stats_abacus(systems_train, systems_test,
                 del gevdm
 
     # check convergence and print in log
-    from deepks.scf.stats import print_stats
+    from deepks.core.physics.pyscf.stats import print_stats
     print_stats(systems=systems_train, test_sys=systems_test,
             dump_dir=train_dump, test_dump=test_dump, group=False, 
             with_conv=True, with_e=True, e_name="e_tot", 

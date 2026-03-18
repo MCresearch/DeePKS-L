@@ -10,7 +10,7 @@ from deepks.io.schemas.reader_fields import (
 )
 from deepks.io.transforms.batch import concat_batch, split_batch
 from deepks.io.transforms.linalg import generalized_eigh
-from deepks.model.utils import make_integrator, cal_nb_overlap
+from deepks.core.ml.utils import make_integrator, cal_nb_overlap
 
 class Reader(object):
     def __init__(self, data_path, batch_size, 

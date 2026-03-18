@@ -8,7 +8,7 @@ import time
 import numpy as np
 from deepks.default import BOHR2ANG
 from deepks.utils import load_yaml
-from deepks.scf.scf import DSCF
+from deepks.core.physics.pyscf.scf import DSCF
 from pyscf import gto, lib
 
 def finite_difference(f, x, delta=1e-6):
