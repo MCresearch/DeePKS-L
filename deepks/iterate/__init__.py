@@ -1,9 +1,6 @@
-__all__ = [
-    "iterate",
-    "template",
-    "template_abacus",
-    "generator_abacus"
-]
+"""Compatibility shim package for iterate modules."""
 
-from .iterate import make_scf, make_train, make_iterate
-from .iterate import make_scf_abacus    #caoyu add 2021-07-25
+from .iterate import *  # noqa: F401,F403
+from .template import *  # noqa: F401,F403
+from .template_abacus import *  # noqa: F401,F403
+from .generator_abacus import *  # noqa: F401,F403

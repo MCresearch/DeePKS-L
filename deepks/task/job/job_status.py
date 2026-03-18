@@ -1,11 +1,3 @@
-from enum import Enum
+"""Compatibility shim to orchestration scheduler job module: job_status."""
 
-class JobStatus (Enum) :
-    unsubmitted = 1
-    waiting = 2
-    running = 3
-    terminated = 4
-    finished = 5
-    completing = 6
-    unknown = 100
-
+from deepks.orchestration.scheduler.job.job_status import *  # noqa: F401,F403
