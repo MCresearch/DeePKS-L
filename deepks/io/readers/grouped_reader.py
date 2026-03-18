@@ -3,6 +3,14 @@ import sys
 import numpy as np
 
 from deepks.io.readers.reader import Reader
+from deepks.io.readers.stats import (
+    collect_elems,
+    compute_data_stat,
+    compute_elem_const,
+    compute_prefitting,
+    revert_elem_const,
+    subtract_elem_const,
+)
 from deepks.io.transforms.batch import concat_batch, split_batch
 
 
@@ -134,74 +142,25 @@ class GroupReader(object):
         return self.batch_size
 
     def compute_data_stat(self, symm_sections=None):
-        all_dm = np.concatenate([r.data_dm.reshape(-1, r.ndesc) for r in self.readers])
-        if symm_sections is None:
-            all_mean, all_std = all_dm.mean(0), all_dm.std(0)
-        else:
-            assert sum(symm_sections) == all_dm.shape[-1]
-            dm_shells = np.split(all_dm, np.cumsum(symm_sections)[:-1], axis=-1)
-            mean_shells = [d.mean().repeat(s) for d, s in zip(dm_shells, symm_sections)]
-            std_shells = [d.std().repeat(s) for d, s in zip(dm_shells, symm_sections)]
-            all_mean = np.concatenate(mean_shells, axis=-1)
-            all_std = np.concatenate(std_shells, axis=-1)
-        return all_mean, all_std
+        return compute_data_stat(self.readers, symm_sections=symm_sections)
 
     def compute_prefitting(self, shift=None, scale=None, ridge_alpha=1e-8, symm_sections=None):
-        if shift is None or scale is None:
-            all_mean, all_std = self.compute_data_stat(symm_sections=symm_sections)
-            if shift is None:
-                shift = all_mean
-            if scale is None:
-                scale = all_std
-        all_sdm = np.concatenate([((r.data_dm - shift) / scale).sum(1) for r in self.readers])
-        all_natm = np.concatenate([[float(r.data_dm.shape[1])] * r.data_dm.shape[0] for r in self.readers])
-        if symm_sections is not None:  # in this case ridge alpha cannot be 0
-            assert sum(symm_sections) == all_sdm.shape[-1]
-            sdm_shells = np.split(all_sdm, np.cumsum(symm_sections)[:-1], axis=-1)
-            all_sdm = np.stack([d.sum(-1) for d in sdm_shells], axis=-1)
-        # build feature matrix
-        X = np.concatenate([all_sdm, all_natm.reshape(-1, 1)], -1)
-        y = np.concatenate([r.data_ec for r in self.readers])
-        I = np.identity(X.shape[1])
-        I[-1, -1] = 0  # do not punish the bias term
-        # solve ridge reg
-        coef = np.linalg.solve(X.T @ X + ridge_alpha * I, X.T @ y).reshape(-1)
-        weight, bias = coef[:-1], coef[-1]
-        if symm_sections is not None:
-            weight = np.concatenate([w.repeat(s) for w, s in zip(weight, symm_sections)], axis=-1)
-        return weight, bias
+        return compute_prefitting(
+            self.readers,
+            shift=shift,
+            scale=scale,
+            ridge_alpha=ridge_alpha,
+            symm_sections=symm_sections,
+        )
 
     def collect_elems(self, elem_list=None):
-        if elem_list is None:
-            elem_list = np.array(sorted(set.union(*[set(r.atom_info["elems"].flatten()) for r in self.readers])))
-        for rd in self.readers:
-            rd.collect_elems(elem_list)
-        return elem_list
+        return collect_elems(self.readers, elem_list=elem_list)
 
     def compute_elem_const(self, ridge_alpha=0.0):
-        elem_list = self.collect_elems()
-        all_nelem = np.concatenate([r.atom_info["nelem"] for r in self.readers])
-        all_ec = np.concatenate([r.data_ec for r in self.readers])
-        # lex sort by nelem
-        lexidx = np.lexsort(all_nelem.T)
-        all_nelem = all_nelem[lexidx]
-        all_ec = all_ec[lexidx]
-        # group by nelem
-        _, sidx = np.unique(all_nelem, return_index=True, axis=0)
-        sidx = np.sort(sidx)
-        grp_nelem = all_nelem[sidx]
-        grp_ec = np.array(list(map(np.mean, np.split(all_ec, sidx[1:]))))
-        if ridge_alpha <= 0:
-            elem_const, _res, _rank, _sing = np.linalg.lstsq(grp_nelem, grp_ec, None)
-        else:
-            I = np.identity(grp_nelem.shape[1])
-            elem_const = np.linalg.solve(grp_nelem.T @ grp_nelem + ridge_alpha * I, grp_nelem.T @ grp_ec)
-        return elem_list.reshape(-1), elem_const.reshape(-1)
+        return compute_elem_const(self.readers, ridge_alpha=ridge_alpha)
 
     def subtract_elem_const(self, elem_const):
-        for rd in self.readers:
-            rd.subtract_elem_const(elem_const)
+        subtract_elem_const(self.readers, elem_const)
 
     def revert_elem_const(self):
-        for rd in self.readers:
-            rd.revert_elem_const()
+        revert_elem_const(self.readers)
