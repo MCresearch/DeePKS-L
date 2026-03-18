@@ -1,27 +1,18 @@
 """
-Reader exports compatibility coverage.
+Reader exports canonical coverage.
 
 Tests:
-- `test_reader_export_identity`
+- `test_reader_canonical_exports`
 """
 
-from deepks.io.readers import GroupReader as GroupReaderPkg
-from deepks.io.readers import Reader as ReaderPkg
-from deepks.io.readers import SimpleReader as SimpleReaderPkg
-from deepks.io.readers.group_reader import GroupReader as GroupReaderLegacy
-from deepks.io.readers.group_reader import Reader as ReaderLegacy
-from deepks.io.readers.group_reader import SimpleReader as SimpleReaderLegacy
-from deepks.io.readers import GroupReader as GroupReaderModelShim
-from deepks.io.readers import Reader as ReaderModelShim
-from deepks.io.readers import SimpleReader as SimpleReaderModelShim
+from deepks.io.readers import GroupReader, Reader, SimpleReader
+from deepks.io.readers.grouped_reader import GroupReader as GroupReaderImpl
+from deepks.io.readers.reader import Reader as ReaderImpl
+from deepks.io.readers.simple_reader import SimpleReader as SimpleReaderImpl
 
 
-def test_reader_export_identity():
-    """Canonical exports and compatibility shims should point to identical class objects."""
-    assert ReaderPkg is ReaderLegacy
-    assert GroupReaderPkg is GroupReaderLegacy
-    assert SimpleReaderPkg is SimpleReaderLegacy
-
-    assert ReaderPkg is ReaderModelShim
-    assert GroupReaderPkg is GroupReaderModelShim
-    assert SimpleReaderPkg is SimpleReaderModelShim
+def test_reader_canonical_exports():
+    """Canonical exports should point to implementation classes."""
+    assert Reader is ReaderImpl
+    assert GroupReader is GroupReaderImpl
+    assert SimpleReader is SimpleReaderImpl

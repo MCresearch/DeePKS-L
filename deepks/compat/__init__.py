@@ -1,1 +1,1 @@
-"""Scaffold package for refactor architecture."""
+"""Reserved namespace for future cross-version compatibility utilities."""

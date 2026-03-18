@@ -1,38 +1,51 @@
-# Refactor Phase 1: Structure Map
+# Refactor Status: Final Architecture (Phase 5)
 
-This document started as phase-1 scaffolding and now also records phase-2 progress.
-Behavior is intentionally kept compatible through shims.
+This document records the repository state after the phase-5 hard cutover.
+Legacy compatibility layers were removed, and all runtime code now uses canonical packages only.
 
-## New package skeleton
+## Canonical package layout
 
-- `deepks/cli/`
-- `deepks/orchestration/`
-- `deepks/io/`
-- `deepks/core/`
-- `deepks/pipelines/`
-- `deepks/compat/`
+- `deepks/cli/`: command-line entrypoints and argument parsing.
+- `deepks/orchestration/`: workflow and scheduler orchestration.
+- `deepks/io/`: readers, transforms, schemas, and adapters.
+- `deepks/core/`: ML and physics core implementations.
+- `deepks/pipelines/`: train/test/scf/iterate pipeline entry modules.
+- `deepks/tools/`: standalone utility scripts.
 
-## Active mappings
+## Removed legacy interfaces
 
-### Orchestration (phase-2: real implementation moved)
-- `deepks/orchestration/workflow/task.py` now hosts the real code migrated from `deepks/task/task.py`.
-- `deepks/orchestration/workflow/workflow.py` now hosts the real code migrated from `deepks/task/workflow.py`.
-- `deepks/orchestration/scheduler/job/*.py` now host real scheduler code migrated from `deepks/task/job/*`.
-- Legacy path kept as shim: `deepks/task/*` -> `deepks/orchestration/*`.
+The following legacy packages/modules were deleted in phase 5:
 
-### Pipelines
-- `deepks/pipelines/iterate/*.py` now host the real code migrated from `deepks/iterate/*`.
-- Legacy path kept as shim: `deepks/iterate/*` -> `deepks/pipelines/iterate/*`.
-- `deepks/pipelines/train/train.py` -> `deepks.model.train`
-- `deepks/pipelines/train/test.py` -> `deepks.model.test`
-- `deepks/pipelines/scf/run.py` -> `deepks.scf.run`
-- `deepks/pipelines/scf/stats.py` -> `deepks.scf.stats`
+- `deepks/main.py`
+- `deepks/model/*`
+- `deepks/scf/*`
+- `deepks/task/*`
+- `deepks/iterate/*`
 
-## Not migrated yet (next phases)
+No compatibility shim path is guaranteed in current architecture.
 
-- Reader/model/scf split into `io` and `core`
+## Canonical import map
 
-## Validation target
+- Train pipeline: `deepks.pipelines.train.train`
+- Test pipeline: `deepks.pipelines.train.test`
+- SCF pipeline run: `deepks.pipelines.scf.run`
+- SCF stats pipeline: `deepks.pipelines.scf.stats`
+- Iterate pipeline: `deepks.pipelines.iterate.iterate`
+- Workflow tasks: `deepks.orchestration.workflow.task`
+- Workflow composition: `deepks.orchestration.workflow.workflow`
+- Scheduler jobs: `deepks.orchestration.scheduler.job.*`
+- Reader APIs: `deepks.io.readers`
+- Core ML: `deepks.core.ml.*`
+- Core physics (PySCF): `deepks.core.physics.pyscf.*`
 
-- Existing imports and CLI behavior stay compatible.
-- Tests remain green before moving real implementations.
+## Entry points
+
+- Console scripts: `deepks` and `dks`
+- Runtime target: `deepks.cli.main:main_cli`
+
+## Validation baseline
+
+- `python -m pytest -q -m "not pyabacus"`
+- `python -m pytest -q`
+
+The baseline currently passes in project CI/dev environments.
