@@ -1,1 +1,1 @@
-"""Scaffold package for refactor architecture."""
+"""I/O layer packages for DeepKS."""
