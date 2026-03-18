@@ -1,57 +1,78 @@
 """
-整体覆盖：CLI 分发层行为。
+整体覆盖：统一 CLI 行为。
 
 测试列表：
-- `test_main_cli_dispatch_train`
-- `test_main_cli_dispatch_iterate_alias`
-- `test_main_cli_unknown_command_returns_valueerror_obj`
+- `test_unified_cli_with_config`
+- `test_unified_cli_missing_command`
+- `test_unified_cli_unknown_command`
 """
 
-import deepks.cli.main as m
+import pytest
+import tempfile
+import os
+import sys
 
 
-def test_main_cli_dispatch_train(monkeypatch):
-	"""
-	依赖：`deepks.cli.main.main_cli` 与 `monkeypatch`。
-	测试内容：输入 `train` 时，命令被分发至 `train_cli` 且参数保持原样。
-	"""
-	captured = {}
+def test_unified_cli_with_config():
+    """测试统一 CLI 加载配置文件。"""
+    from deepks.cli.main import main
 
-	def fake_train_cli(args=None):
-		captured["name"] = "train"
-		captured["args"] = args
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write('command: scf\n')
+        f.write('scf_soft: pyscf\n')
+        f.write('systems:\n  - sys1\n')
+        f.flush()
+        config_path = f.name
 
-	monkeypatch.setattr(m, "train_cli", fake_train_cli)
-	m.main_cli(["train", "--foo", "bar"])
+    try:
+        original_argv = sys.argv
+        sys.argv = ['deepks', config_path]
 
-	assert captured["name"] == "train"
-	assert captured["args"] == ["--foo", "bar"]
-
-
-def test_main_cli_dispatch_iterate_alias(monkeypatch):
-	"""
-	依赖：`deepks.cli.main.main_cli` 与 `monkeypatch`。
-	测试内容：`iter` 别名应分发到 `iter_cli`。
-	"""
-	captured = {}
-
-	def fake_iter_cli(args=None):
-		captured["name"] = "iterate"
-		captured["args"] = args
-
-	monkeypatch.setattr(m, "iter_cli", fake_iter_cli)
-	m.main_cli(["iter", "args.yaml"])
-
-	assert captured["name"] == "iterate"
-	assert captured["args"] == ["args.yaml"]
+        # 应该尝试运行但会因为缺少 pyscf 而失败
+        with pytest.raises(SystemExit):
+            main()
+    finally:
+        sys.argv = original_argv
+        os.unlink(config_path)
 
 
-def test_main_cli_unknown_command_returns_valueerror_obj():
-	"""
-	依赖：`deepks.cli.main.main_cli`。
-	测试内容：未知命令保持当前兼容行为（返回 `ValueError` 对象）。
-	"""
-	res = m.main_cli(["unknown-cmd"])
-	assert isinstance(res, ValueError)
+def test_unified_cli_missing_command():
+    """测试配置文件缺少 command 字段。"""
+    from deepks.cli.main import main
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write('systems:\n  - sys1\n')
+        f.flush()
+        config_path = f.name
+
+    try:
+        original_argv = sys.argv
+        sys.argv = ['deepks', config_path]
+
+        with pytest.raises(SystemExit) as ex:
+            main()
+        assert ex.value.code == 1
+    finally:
+        sys.argv = original_argv
+        os.unlink(config_path)
 
 
+def test_unified_cli_unknown_command():
+    """测试未知命令。"""
+    from deepks.cli.main import main
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write('command: unknown\n')
+        f.flush()
+        config_path = f.name
+
+    try:
+        original_argv = sys.argv
+        sys.argv = ['deepks', config_path]
+
+        with pytest.raises(SystemExit) as ex:
+            main()
+        assert ex.value.code == 1
+    finally:
+        sys.argv = original_argv
+        os.unlink(config_path)

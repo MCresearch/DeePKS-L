@@ -85,7 +85,7 @@ systems_test:
   - ../../systems/data_test
 
 # abacus settings, these are for SCF task
-use_abacus: true
+scf_soft: abacus
 scf_abacus:
   #INPUT args
   ntype: 2

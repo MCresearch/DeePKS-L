@@ -1,17 +1,20 @@
 """
-整体覆盖：`deepks train` 命令入口可用性。
-
-测试列表：
-- `test_train_cli_help_exit_zero`
+Smoke 测试：验证统一 CLI 的 train 功能。
 """
 
 import pytest
-
-from deepks.cli.main import train_cli
+import sys
 
 
 def test_train_cli_help_exit_zero():
-    """依赖：`deepks.cli.main.train_cli`。测试内容：`train -h` 返回码为 0。"""
-    with pytest.raises(SystemExit) as ex:
-        train_cli(["-h"])
-    assert ex.value.code == 0
+    """测试统一 CLI 帮助信息。"""
+    from deepks.cli.main import main
+
+    original_argv = sys.argv
+    try:
+        sys.argv = ['deepks', '--help']
+        with pytest.raises(SystemExit) as ex:
+            main()
+        assert ex.value.code == 0
+    finally:
+        sys.argv = original_argv

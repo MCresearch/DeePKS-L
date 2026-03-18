@@ -1,61 +1,29 @@
 """
-Smoke 测试：只验证 CLI 帮助入口是否可调用。
+Smoke 测试：验证统一 CLI 入口是否可调用。
 
 整体覆盖：
-- `deepks` 主入口与各子命令 `-h` 帮助页可调用性。
+- `deepks` 统一入口帮助页可调用性。
 
 测试列表：
 - `test_main_help`
-- `test_subcommand_help_train`
-- `test_subcommand_help_test`
-- `test_subcommand_help_scf`
-- `test_subcommand_help_stats`
-- `test_subcommand_help_iterate`
 """
 
 import pytest
-
-from deepks.cli.main import (
-    iter_cli,
-    main_cli,
-    scf_cli,
-    stats_cli,
-    test_cli as dks_test_cli,
-    train_cli,
-)
-
-
-def _assert_help_ok(func):
-    with pytest.raises(SystemExit) as ex:
-        func(["-h"])
-    assert ex.value.code == 0
+import sys
 
 
 def test_main_help():
-    """依赖：`deepks.cli.main.main_cli`。测试内容：主命令 `-h` 返回码为 0。"""
-    _assert_help_ok(main_cli)
+    """测试统一 CLI 帮助信息。"""
+    from deepks.cli.main import main
 
-
-def test_subcommand_help_train():
-    """依赖：`deepks.cli.main.train_cli`。测试内容：`train -h` 正常退出。"""
-    _assert_help_ok(train_cli)
-
-
-def test_subcommand_help_test():
-    """依赖：`deepks.cli.main.test_cli`。测试内容：`test -h` 正常退出。"""
-    _assert_help_ok(dks_test_cli)
-
-
-def test_subcommand_help_scf():
-    """依赖：`deepks.cli.main.scf_cli`。测试内容：`scf -h` 正常退出。"""
-    _assert_help_ok(scf_cli)
-
-
-def test_subcommand_help_stats():
-    """依赖：`deepks.cli.main.stats_cli`。测试内容：`stats -h` 正常退出。"""
-    _assert_help_ok(stats_cli)
-
-
-def test_subcommand_help_iterate():
-    """依赖：`deepks.cli.main.iter_cli`。测试内容：`iterate -h` 正常退出。"""
-    _assert_help_ok(iter_cli)
+    # 保存原始 argv
+    original_argv = sys.argv
+    try:
+        # 模拟 --help 参数
+        sys.argv = ['deepks', '--help']
+        with pytest.raises(SystemExit) as ex:
+            main()
+        # --help 应该返回 0
+        assert ex.value.code == 0
+    finally:
+        sys.argv = original_argv

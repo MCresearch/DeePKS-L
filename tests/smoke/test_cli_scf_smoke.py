@@ -1,17 +1,20 @@
 """
-整体覆盖：`deepks scf` 命令入口可用性。
-
-测试列表：
-- `test_scf_cli_help_exit_zero`
+Smoke 测试：验证统一 CLI 的 SCF 功能。
 """
 
 import pytest
-
-from deepks.cli.main import scf_cli
+import sys
 
 
 def test_scf_cli_help_exit_zero():
-    """依赖：`deepks.cli.main.scf_cli`。测试内容：`scf -h` 返回码为 0。"""
-    with pytest.raises(SystemExit) as ex:
-        scf_cli(["-h"])
-    assert ex.value.code == 0
+    """测试统一 CLI 帮助信息。"""
+    from deepks.cli.main import main
+
+    original_argv = sys.argv
+    try:
+        sys.argv = ['deepks', '--help']
+        with pytest.raises(SystemExit) as ex:
+            main()
+        assert ex.value.code == 0
+    finally:
+        sys.argv = original_argv

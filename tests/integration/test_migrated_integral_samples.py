@@ -127,7 +127,7 @@ def test_migrated_integral_iterate_reference_catalog():
 
     assert cfg["n_iter"] == 1
     assert cfg["strict"] is True
-    assert cfg["use_abacus"] is True
+    assert cfg["scf_soft"] == "abacus"
     assert cfg["systems_train"] == ["../../systems/data_train"]
     assert cfg["systems_test"] == ["../../systems/data_test"]
 

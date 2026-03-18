@@ -141,14 +141,14 @@ def collect_systems(systems, folder=None):
     return targets
 
 
-def make_iterate(systems_train=None, systems_test=None, n_iter=0, 
+def make_iterate(systems_train=None, systems_test=None, n_iter=0,
                  *, proj_basis=None, workdir=".", share_folder="share",
                  scf_input=True, scf_machine=None,
                  train_input=True, train_machine=None,
                  init_model=False, init_scf=True, init_train=True,
                  init_scf_machine=None, init_train_machine=None,
-                 cleanup=False, strict=True, 
-                 use_abacus=False, scf_abacus=None, init_scf_abacus=None):#caoyu add 2021-07-22
+                 cleanup=False, strict=True,
+                 scf_soft='pyscf', scf_abacus=None, init_scf_abacus=None):
     r"""
     Make a `Workflow` to do the iterative training procedure.
 
@@ -219,13 +219,11 @@ def make_iterate(systems_train=None, systems_test=None, n_iter=0,
     cleanup: bool, optional 
         Whether to remove job files during calculation, 
         such as ``slurm-*.out`` and ``err``. Defaults to False.
-    strict: bool, optional 
+    strict: bool, optional
         Whether to allow additional arguments to be passed to task constructor,
         through `scf_machine` and `train_machine`. Defaults to True.
-    use_abacus: bool, optional
-        If set to`True`,  do SCF calculation with ABACUS.
-        If set to `False`,  do SCF calculation with PySCF.
-        Defaults to `False`.
+    scf_soft: str, optional
+        SCF software to use ('pyscf' or 'abacus'). Defaults to 'pyscf'.
     Returns
     -------
     iterate: Iteration (subclass of Workflow)
@@ -260,7 +258,7 @@ def make_iterate(systems_train=None, systems_test=None, n_iter=0,
     train_machine = check_arg_dict(train_machine, DEFAULT_TRN_MACHINE, strict)
 
     # make tasks
-    if use_abacus:  #caoyu add 2021-07-22
+    if scf_soft.lower() == 'abacus':
         scf_abacus_name = check_share_folder(scf_abacus, SCF_ARGS_NAME_ABACUS, share_folder)
         scf_abacus = check_arg_dict(scf_abacus, DEFAULT_SCF_ARGS_ABACUS, strict)
         scf_abacus = dict(scf_abacus, **scf_machine)
@@ -269,7 +267,7 @@ def make_iterate(systems_train=None, systems_test=None, n_iter=0,
             model_file=MODEL_FILE, workdir=SCF_STEP_DIR, share_folder=share_folder,
             cleanup=cleanup, **scf_abacus)
         proj_basis=None     # discussion needed
-    else:
+    elif scf_soft.lower() == 'pyscf':
         # handle projection basis
         if proj_basis is not None:
             save_basis(os.path.join(share_folder, PROJ_BASIS), load_basis(proj_basis))
@@ -280,6 +278,11 @@ def make_iterate(systems_train=None, systems_test=None, n_iter=0,
             workdir=SCF_STEP_DIR, share_folder=share_folder,
             source_arg=scf_args_name, source_model=MODEL_FILE,
             source_pbasis=proj_basis, cleanup=cleanup, **scf_machine
+        )
+    else:
+        raise ValueError(
+            f"Unknown SCF backend: {scf_soft}. "
+            f"Available backends: ['pyscf', 'abacus']"
         )
     train_step = make_train(
         source_train=DATA_TRAIN, source_test=DATA_TEST,
@@ -300,17 +303,17 @@ def make_iterate(systems_train=None, systems_test=None, n_iter=0,
     elif init_scf or init_train: # otherwise, make an init iteration to train the first model
         init_scf_machine = (check_arg_dict(init_scf_machine, DEFAULT_SCF_MACHINE, strict)
             if init_scf_machine is not None else scf_machine)
-        if use_abacus:  #caoyu add 2021-07-22
+        if scf_soft.lower() == 'abacus':
             init_scf_abacus_name = check_share_folder(init_scf_abacus, INIT_SCF_NAME_ABACUS, share_folder)
             init_scf_abacus = check_arg_dict(init_scf_abacus, DEFAULT_SCF_ARGS_ABACUS, strict)
             init_scf_abacus = dict(init_scf_abacus, **scf_machine)
             scf_init = make_scf_abacus(
                 systems_train=systems_train, systems_test=systems_test,
                 train_dump=DATA_TRAIN, test_dump=DATA_TEST, no_model=True,
-                workdir=SCF_STEP_DIR, share_folder=share_folder, model_file=None, 
+                workdir=SCF_STEP_DIR, share_folder=share_folder, model_file=None,
                 cleanup=cleanup, **init_scf_abacus
             )
-        else:
+        elif scf_soft.lower() == 'pyscf':
             init_scf_name = check_share_folder(init_scf, INIT_SCF_NAME, share_folder)
             scf_init = make_scf(
                 systems_train=systems_train, systems_test=systems_test,
@@ -318,6 +321,11 @@ def make_iterate(systems_train=None, systems_test=None, n_iter=0,
                 workdir=SCF_STEP_DIR, share_folder=share_folder,
                 source_arg=init_scf_name, source_model=None, source_pbasis=proj_basis,
                 cleanup=cleanup, **scf_machine
+            )
+        else:
+            raise ValueError(
+                f"Unknown SCF backend: {scf_soft}. "
+                f"Available backends: ['pyscf', 'abacus']"
             )
         init_train_name = check_share_folder(init_train, INIT_TRN_NAME, share_folder)
         init_train_machine = (check_arg_dict(init_train_machine, DEFAULT_SCF_MACHINE, strict)
