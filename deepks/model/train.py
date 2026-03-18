@@ -13,7 +13,7 @@ from deepks.core.ml.models.corrnet import CorrNet
 from deepks.io.readers.group_reader import GroupReader
 from deepks.utils import load_dirs, load_elem_table
 from deepks.model.utils import preprocess, fit_elem_const, make_loss
-from deepks.model.evaluator import Evaluator, NatomLossList
+from deepks.core.ml.eval.evaluator import Evaluator, NatomLossList
 
 def train(model, g_reader, n_epoch=1000, test_reader=None, *,
           energy_factor=1., force_factor=0., stress_factor=0., orbital_factor=0., v_delta_factor=0., v_delta_r_factor=0., phi_factor=0.,phi_occ=0, band_factor=0., band_occ=0, density_m_factor=0., density_m_occ=0, density_factor=0.,
