@@ -8,6 +8,28 @@ except ImportError as e:
 from deepks.utils import load_yaml, deep_update
 
 
+_MODEL_BACKEND = None
+_PHYSICS_BACKEND = None
+
+
+def _get_model_backend():
+    global _MODEL_BACKEND
+    if _MODEL_BACKEND is None:
+        from deepks.io.adapters import CorrNetModelBackend
+
+        _MODEL_BACKEND = CorrNetModelBackend()
+    return _MODEL_BACKEND
+
+
+def _get_physics_backend():
+    global _PHYSICS_BACKEND
+    if _PHYSICS_BACKEND is None:
+        from deepks.io.adapters import PySCFPhysicsBackend
+
+        _PHYSICS_BACKEND = PySCFPhysicsBackend()
+    return _PHYSICS_BACKEND
+
+
 def main_cli(args=None):
     '''
         Main function for DeepKS running. Call subfunctions to realize.
@@ -74,8 +96,7 @@ def train_cli(args=None):
     else:
         argdict = vars(args)
 
-    from deepks.pipelines.train.train import main
-    main(**argdict)
+    _get_model_backend().train(**argdict)
 
 
 def test_cli(args=None):
@@ -118,8 +139,7 @@ def test_cli(args=None):
     else:
         argdict = vars(args)
 
-    from deepks.pipelines.train.test import main
-    main(**argdict)
+    _get_model_backend().evaluate(**argdict)
 
 
 def scf_cli(args=None):
@@ -184,8 +204,7 @@ def scf_cli(args=None):
         argdict = vars(args)
         argdict["scf_args"] = scf_args
 
-    from deepks.pipelines.scf.run import main
-    main(**argdict)
+    _get_physics_backend().run_scf(**argdict)
 
 
 def stats_cli(args=None):
@@ -230,8 +249,7 @@ def stats_cli(args=None):
     else:
         argdict = vars(args)
 
-    from deepks.pipelines.scf.stats import print_stats
-    print_stats(**argdict)
+    _get_physics_backend().collect_stats(**argdict)
 
 
 def iter_cli(args=None):
