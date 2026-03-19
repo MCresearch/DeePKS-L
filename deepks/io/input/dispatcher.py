@@ -22,10 +22,9 @@ def dispatch_command(config):
         from deepks.pipelines.test.test import main as test_main
         test_main(**config)
     elif task_type == 'scf':
-        from deepks.cli.main import _get_physics_backend
-        scf_soft = config.pop('scf_soft', 'pyscf')
-        backend = _get_physics_backend(scf_soft)
-        backend.run_scf(**config)
+        # Use new SCF workflow
+        from deepks.workflows.scf import run_scf_workflow
+        run_scf_workflow(config)
     elif task_type == 'stats':
         from deepks.cli.main import _get_physics_backend
         scf_soft = config.get('scf_soft', 'pyscf')
