@@ -208,16 +208,15 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         if scf_soft.lower() == 'abacus':
             init_scf_abacus = config.get('init_scf_abacus')
             init_scf_args_name = check_share_folder(init_scf_abacus, INIT_SCF_NAME_ABACUS, share_path)
-            init_scf_machine = config.get('init_scf_machine')
-            init_scf_machine = (check_arg_dict(init_scf_machine, DEFAULT_SCF_MACHINE, strict)
-                if init_scf_machine is not None else scf_machine)
+            init_scf_abacus = check_arg_dict(init_scf_abacus, DEFAULT_SCF_ARGS_ABACUS, strict)
 
+            # For ABACUS init: use scf_machine (not init_scf_machine) as per original logic
             scf_init = create_scf_step(
                 systems_train=systems_train,
                 systems_test=systems_test,
                 scf_soft=scf_soft,
-                scf_args=init_scf_abacus if init_scf_abacus else scf_abacus,
-                scf_machine=init_scf_machine,
+                scf_args=init_scf_abacus,
+                scf_machine=scf_machine,  # Use scf_machine, not init_scf_machine
                 proj_basis=proj_basis,
                 share_folder=share_folder,
                 cleanup=cleanup,
@@ -239,13 +238,10 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
 
         # Prepare init train step (energy-only training)
         init_train_args_name = check_share_folder(init_train, INIT_TRN_NAME, share_path)
-        init_train_machine = config.get('init_train_machine')
-        init_train_machine = (check_arg_dict(init_train_machine, DEFAULT_TRN_MACHINE, strict)
-            if init_train_machine is not None else train_machine)
-
+        # Use train_machine (not init_train_machine) as per original logic
         train_init = create_train_step(
             train_args_name=init_train_args_name,
-            train_machine=init_train_machine,
+            train_machine=train_machine,  # Use train_machine, not init_train_machine
             proj_basis=proj_basis,
             share_folder=share_folder,
             cleanup=cleanup
