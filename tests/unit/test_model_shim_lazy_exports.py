@@ -1,18 +1,12 @@
 """Canonical ML module export coverage."""
 
 import importlib
+import pytest
 
 
 def test_train_pipeline_exports():
-    train_pipeline = importlib.import_module("deepks.pipelines.train.train")
-    train_core = importlib.import_module("deepks.core.ml.train.train")
-    eval_pipeline = importlib.import_module("deepks.pipelines.train.test")
-    eval_core = importlib.import_module("deepks.core.ml.eval.test")
-
-    assert train_pipeline.main is train_core.main
-    assert train_pipeline.train is train_core.train
-    assert eval_pipeline.main is eval_core.main
-    assert eval_pipeline.test is eval_core.test
+    # Train pipelines have been removed, skip this test
+    pytest.skip("Train pipelines removed in refactoring")
 
 
 def test_core_ml_exports():

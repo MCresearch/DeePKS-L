@@ -190,11 +190,13 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
     )
 
     # Create iteration workflow
+    init_folder = config.get('init_folder', 'iter.init')
     iteration_workflow = Iteration(
         [scf_step, train_step],
-        n_iter=n_iter,
+        iternum=n_iter,
         workdir=workdir,
-        record_file=RECORD
+        record_file=RECORD,
+        init_folder=init_folder
     )
 
     record_file = os.path.join(workdir, RECORD)

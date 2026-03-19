@@ -38,12 +38,12 @@ def coord_to_atom(path):
 
 
 def make_scf_abacus(systems_train, systems_test=None, *,
-             train_dump="data_train", test_dump="data_test", cleanup=None, 
+             train_dump="data_train", test_dump="data_test", cleanup=None,
              dispatcher=None, resources =None, no_model=True, group_size=1,
              workdir='00.scf', share_folder='share', model_file=None,
              orb_files=[], pp_files=[], proj_file=[],  **scf_abacus):
     #share orb_files and pp_files
-    from deepks.pipelines.iterate.iterate import check_share_folder
+    from deepks.workflows.iterate.prepare import check_share_folder
     for i in range (len(orb_files)):
         orb_files[i] = check_share_folder(orb_files[i], orb_files[i], share_folder)
     for i in range (len(pp_files)):

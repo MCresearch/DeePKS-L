@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from deepks.pipelines.train.test import main as model_test_main
-from deepks.pipelines.train.train import main as train_main
-from deepks.pipelines.scf.stats import print_stats as stats_main
+from deepks.pipelines.test.test import main as model_test_main
+from deepks.core.ml.train.train import main as train_main
+from deepks.core.physics.pyscf.stats import print_stats as stats_main
 from deepks.utils import load_yaml
 
 

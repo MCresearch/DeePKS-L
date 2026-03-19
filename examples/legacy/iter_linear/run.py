@@ -8,7 +8,7 @@ from sklearn import linear_model
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + '/../../')
 from deepks.core.physics.pyscf.scf import DSCF
-from deepks.pipelines.scf.run import build_mol, solve_mol
+from deepks.core.physics.pyscf.run import build_mol, solve_mol
 
 def get_linear_model(weig, wec):
 #     too_small = weig.reshape(-1,108).std(0) < 1e-3

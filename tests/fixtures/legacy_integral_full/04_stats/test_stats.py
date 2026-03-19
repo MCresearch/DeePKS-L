@@ -2,7 +2,7 @@ import os
 import pytest
 import contextlib
 from deepks.utils import load_yaml
-from deepks.pipelines.scf.stats import print_stats as stats_main
+from deepks.core.physics.pyscf.stats import print_stats as stats_main
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 yaml_path = os.path.join(current_dir, "stats_input.yaml")

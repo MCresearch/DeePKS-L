@@ -86,8 +86,8 @@ DEFAULT_SCF_ARGS = {
 MOL_ATTRIBUTE = {"charge", "basis", "unit"} # other molecule properties
 
 ## default settings for make scf tasks
-SCF_CMD = "{python} -u -m deepks.pipelines.scf.run"
-TRN_CMD = "{python} -u -m deepks.pipelines.train.train"
+SCF_CMD = "{python} -u -m deepks.core.physics.pyscf.run"
+TRN_CMD = "{python} -u -m deepks.core.ml.train.train"
 DEFAULT_SCF_RES = {
     "time_limit": "24:00:00",
     "cpus_per_task": 8,
