@@ -3,13 +3,13 @@
 This module handles the preparation stage of iterate workflow:
 - Set up working directory structure
 - Prepare shared files
-- Create iteration workflow
+- Create iteration workflow with optional init iteration
 """
 
 import os
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
-from deepks.orchestration.workflow.workflow import Iteration
+from deepks.orchestration.workflow.workflow import Iteration, Sequence
 from deepks.utils import copy_file, save_yaml, load_yaml, load_basis, save_basis
 from deepks.default import DEFAULT_SCF_ARGS_ABACUS
 from .scf_step import create_scf_step
@@ -119,7 +119,8 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
     """Prepare iteration workflow (Stage 1).
 
     This function sets up the working directory, prepares shared files,
-    and creates the iteration workflow.
+    and creates the iteration workflow. If init_scf or init_train is specified,
+    it creates an initial iteration (iter.init) with energy-only training.
 
     Args:
         config: Configuration dictionary
@@ -168,7 +169,7 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         save_basis(os.path.join(share_path, PROJ_BASIS), load_basis(proj_basis))
         proj_basis = PROJ_BASIS
 
-    # Create SCF step
+    # Create main iteration SCF and train steps
     scf_step = create_scf_step(
         systems_train=systems_train,
         systems_test=systems_test,
@@ -180,7 +181,6 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         cleanup=cleanup
     )
 
-    # Create training step
     train_step = create_train_step(
         train_args_name=train_args_name,
         train_machine=train_machine,
@@ -189,15 +189,76 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         cleanup=cleanup
     )
 
-    # Create iteration workflow
-    init_folder = config.get('init_folder', 'iter.init')
+    # Create main iteration workflow
     iteration_workflow = Iteration(
         [scf_step, train_step],
         iternum=n_iter,
         workdir=workdir,
-        record_file=RECORD,
-        init_folder=init_folder
+        record_file=RECORD
     )
+
+    # Handle initialization iteration (iter.init)
+    # This is the first iteration with energy-only training to prevent large model differences
+    init_scf = config.get('init_scf')
+    init_train = config.get('init_train')
+    init_model = config.get('init_model', False)
+
+    if init_scf or init_train:
+        # Prepare init SCF step
+        if scf_soft.lower() == 'abacus':
+            init_scf_abacus = config.get('init_scf_abacus')
+            init_scf_args_name = check_share_folder(init_scf_abacus, INIT_SCF_NAME_ABACUS, share_path)
+            init_scf_machine = config.get('init_scf_machine')
+            init_scf_machine = (check_arg_dict(init_scf_machine, DEFAULT_SCF_MACHINE, strict)
+                if init_scf_machine is not None else scf_machine)
+
+            scf_init = create_scf_step(
+                systems_train=systems_train,
+                systems_test=systems_test,
+                scf_soft=scf_soft,
+                scf_args=init_scf_abacus if init_scf_abacus else scf_abacus,
+                scf_machine=init_scf_machine,
+                proj_basis=proj_basis,
+                share_folder=share_folder,
+                cleanup=cleanup,
+                no_model=True  # No model for init SCF
+            )
+        else:  # pyscf
+            init_scf_args_name = check_share_folder(init_scf, INIT_SCF_NAME, share_path)
+            scf_init = create_scf_step(
+                systems_train=systems_train,
+                systems_test=systems_test,
+                scf_soft=scf_soft,
+                scf_args=None,
+                scf_machine=scf_machine,
+                proj_basis=proj_basis,
+                share_folder=share_folder,
+                cleanup=cleanup,
+                no_model=True  # No model for init SCF
+            )
+
+        # Prepare init train step (energy-only training)
+        init_train_args_name = check_share_folder(init_train, INIT_TRN_NAME, share_path)
+        init_train_machine = config.get('init_train_machine')
+        init_train_machine = (check_arg_dict(init_train_machine, DEFAULT_TRN_MACHINE, strict)
+            if init_train_machine is not None else train_machine)
+
+        train_init = create_train_step(
+            train_args_name=init_train_args_name,
+            train_machine=init_train_machine,
+            proj_basis=proj_basis,
+            share_folder=share_folder,
+            cleanup=cleanup
+        )
+
+        # Create init iteration sequence
+        init_iter = Sequence([scf_init, train_init], workdir="iter.init")
+
+        # Prepend init iteration to main workflow
+        iteration_workflow.prepend(init_iter)
+
+        # Set init_folder for main iteration
+        iteration_workflow.init_folder = "iter.init"
 
     record_file = os.path.join(workdir, RECORD)
 
