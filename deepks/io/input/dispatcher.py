@@ -16,8 +16,9 @@ def dispatch_command(config):
     task_type = config.get('type')
 
     if task_type == 'train':
-        from deepks.pipelines.train.train import main as train_main
-        train_main(**config)
+        # Use new train workflow
+        from deepks.workflows.train import run_train_workflow
+        run_train_workflow(config)
     elif task_type == 'test':
         from deepks.pipelines.test.test import main as test_main
         test_main(**config)
