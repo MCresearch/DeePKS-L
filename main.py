@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 """DeePKS main entry point.
 
-This is the unified entry point for all DeePKS commands.
+This is the unified entry point for all DeePKS tasks.
 It loads configuration, validates it, and dispatches to the appropriate workflow.
+
+Usage:
+    deepks [config.yaml]    # Uses input.yaml by default
+    deepks --help           # Show help message
 """
 
 import sys
@@ -17,7 +21,6 @@ def load_and_validate_config():
     """
     from deepks.io.input import load_config, get_default_config
     from deepks.io.input.merger import merge_configs, apply_parameter_inheritance
-    from deepks.io.input.validator import validate_config
 
     # Get config file path
     config_file = sys.argv[1] if len(sys.argv) > 1 else 'input.yaml'
@@ -25,92 +28,40 @@ def load_and_validate_config():
     # Check file exists
     if not os.path.exists(config_file):
         print(f"Error: Configuration file '{config_file}' not found", file=sys.stderr)
-        print(f"Usage: python main.py [config.yaml]", file=sys.stderr)
+        print(f"Usage: deepks [config.yaml]", file=sys.stderr)
         sys.exit(1)
 
     # Load configuration
     config = load_config(config_file)
 
-    # Check command field
-    if 'command' not in config:
-        print("Error: 'command' field is required in configuration file", file=sys.stderr)
-        print("Valid commands: train, test, scf, stats, iterate", file=sys.stderr)
+    # Check type field
+    if 'type' not in config:
+        print("Error: 'type' field is required in configuration file", file=sys.stderr)
+        print("Valid types: train, test, scf, stats, iterate", file=sys.stderr)
         sys.exit(1)
 
-    command = config['command']
+    task_type = config['type']
 
     # Get defaults and merge
     scf_soft = config.get('scf_soft', 'pyscf')
-    defaults = get_default_config(command, scf_soft)
+    defaults = get_default_config(task_type, scf_soft)
     config = merge_configs(defaults, config)
 
-    # Apply parameter inheritance for iterate command
-    if command == 'iterate':
+    # Apply parameter inheritance for iterate type
+    if task_type == 'iterate':
         config = apply_parameter_inheritance(config)
-
-    # Validate configuration
-    try:
-        validate_config(config, command)
-    except Exception as e:
-        print(f"Error: Configuration validation failed: {e}", file=sys.stderr)
-        sys.exit(1)
 
     return config
 
 
 def dispatch_to_workflow(config):
-    """Dispatch to appropriate workflow based on command.
+    """Dispatch to appropriate workflow based on type.
 
     Args:
         config: Configuration dictionary
     """
-    command = config['command']
-
-    if command == 'scf':
-        # TODO: Will be implemented in step 2
-        # from deepks.workflows.scf import run_scf_workflow
-        # run_scf_workflow(config)
-
-        # Temporary: use old dispatcher
-        from deepks.io.input.dispatcher import dispatch_command
-        dispatch_command(config)
-
-    elif command == 'train':
-        # TODO: Will be implemented in step 4
-        # from deepks.workflows.train import run_train_workflow
-        # run_train_workflow(config)
-
-        # Temporary: use old dispatcher
-        from deepks.io.input.dispatcher import dispatch_command
-        dispatch_command(config)
-
-    elif command == 'test':
-        # Temporary: use old dispatcher
-        from deepks.io.input.dispatcher import dispatch_command
-        dispatch_command(config)
-
-    elif command == 'iterate':
-        # TODO: Will be implemented in step 5
-        # from deepks.workflows.iterate import run_iterate_workflow
-        # run_iterate_workflow(config)
-
-        # Temporary: use old dispatcher
-        from deepks.io.input.dispatcher import dispatch_command
-        dispatch_command(config)
-
-    elif command == 'stats':
-        # TODO: Will be implemented later
-        # from deepks.workflows.stats import run_stats_workflow
-        # run_stats_workflow(config)
-
-        # Temporary: use old dispatcher
-        from deepks.io.input.dispatcher import dispatch_command
-        dispatch_command(config)
-
-    else:
-        print(f"Error: Unknown command '{command}'", file=sys.stderr)
-        print("Valid commands: train, test, scf, stats, iterate", file=sys.stderr)
-        sys.exit(1)
+    from deepks.io.input.dispatcher import dispatch_command
+    dispatch_command(config)
 
 
 def print_help():
@@ -118,18 +69,19 @@ def print_help():
     print("""DeePKS: Deep Kohn-Sham DFT with machine learning
 
 Usage:
-    python main.py [config.yaml]
+    deepks [config.yaml]
 
 Arguments:
     config.yaml    Configuration file (default: input.yaml)
 
 Configuration file must contain:
-    command: <command_name>    # Required: train, test, scf, stats, iterate
-    scf_soft: <backend>        # Optional: pyscf (default) or abacus
+    type: <task_type>      # Required: train, test, scf, stats, iterate
+    scf_soft: <backend>    # Optional: pyscf (default) or abacus
 
 Examples:
-    python main.py input.yaml
-    python main.py my_config.yaml
+    deepks                 # Uses input.yaml
+    deepks my_config.yaml  # Uses specified config
+    deepks --help          # Show this help
 
 For more information, see docs/input-parameter.md
 """)

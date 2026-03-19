@@ -91,11 +91,11 @@ DEFAULT_ITERATE = {
 }
 
 
-def get_default_config(command=None, scf_soft='pyscf'):
-    """Get default configuration for a command.
+def get_default_config(task_type=None, scf_soft='pyscf'):
+    """Get default configuration for a task type.
 
     Args:
-        command: Command name ('scf', 'train', 'test', 'iterate')
+        task_type: Task type ('scf', 'train', 'test', 'iterate', 'stats')
         scf_soft: SCF backend ('pyscf' or 'abacus')
 
     Returns:
@@ -103,17 +103,17 @@ def get_default_config(command=None, scf_soft='pyscf'):
     """
     config = DEFAULT_COMMON.copy()
 
-    if command == 'scf':
+    if task_type == 'scf':
         config.update(DEFAULT_SCF_COMMON)
         if scf_soft.lower() == 'pyscf':
             config.update(DEFAULT_SCF_PYSCF)
         elif scf_soft.lower() == 'abacus':
             config.update(DEFAULT_SCF_ABACUS)
-    elif command == 'train':
+    elif task_type == 'train':
         config.update(DEFAULT_TRAIN)
-    elif command == 'test':
+    elif task_type == 'test':
         config.update(DEFAULT_TEST)
-    elif command == 'iterate':
+    elif task_type == 'iterate':
         config.update(DEFAULT_ITERATE)
         config.update(DEFAULT_SCF_COMMON)
         # Add SCF defaults based on backend
@@ -122,5 +122,11 @@ def get_default_config(command=None, scf_soft='pyscf'):
         elif scf_soft.lower() == 'abacus':
             config.update(DEFAULT_SCF_ABACUS)
         config.update(DEFAULT_TRAIN)
+    elif task_type == 'stats':
+        config.update(DEFAULT_SCF_COMMON)
+        if scf_soft.lower() == 'pyscf':
+            config.update(DEFAULT_SCF_PYSCF)
+        elif scf_soft.lower() == 'abacus':
+            config.update(DEFAULT_SCF_ABACUS)
 
     return config

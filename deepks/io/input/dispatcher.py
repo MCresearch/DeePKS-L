@@ -11,28 +11,28 @@ def dispatch_command(config):
         config: Unified configuration dictionary
 
     Raises:
-        ValueError: If command is not recognized
+        ValueError: If type is not recognized
     """
-    command = config.get('command')
+    task_type = config.get('type')
 
-    if command == 'train':
+    if task_type == 'train':
         from deepks.pipelines.train.train import main as train_main
         train_main(**config)
-    elif command == 'test':
+    elif task_type == 'test':
         from deepks.pipelines.test.test import main as test_main
         test_main(**config)
-    elif command == 'scf':
+    elif task_type == 'scf':
         from deepks.cli.main import _get_physics_backend
         scf_soft = config.pop('scf_soft', 'pyscf')
         backend = _get_physics_backend(scf_soft)
         backend.run_scf(**config)
-    elif command == 'stats':
+    elif task_type == 'stats':
         from deepks.cli.main import _get_physics_backend
         scf_soft = config.get('scf_soft', 'pyscf')
         backend = _get_physics_backend(scf_soft)
         backend.collect_stats(**config)
-    elif command == 'iterate':
+    elif task_type == 'iterate':
         from deepks.pipelines.iterate.iterate import main as iterate_main
         iterate_main(**config)
     else:
-        raise ValueError(f"Unknown command: {command}")
+        raise ValueError(f"Unknown type: {task_type}")

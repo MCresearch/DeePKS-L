@@ -60,23 +60,23 @@ def main():
         # Load configuration file
         config = load_config(args.config)
 
-        # Determine command from config
-        if 'command' not in config:
-            print("Error: 'command' field is required in configuration file", file=sys.stderr)
-            print("Valid commands: train, test, scf, stats, iterate", file=sys.stderr)
+        # Determine type from config
+        if 'type' not in config:
+            print("Error: 'type' field is required in configuration file", file=sys.stderr)
+            print("Valid types: train, test, scf, stats, iterate", file=sys.stderr)
             sys.exit(1)
 
-        command = config['command']
+        task_type = config['type']
 
-        # Get defaults based on command and backend
+        # Get defaults based on type and backend
         scf_soft = config.get('scf_soft', 'pyscf')
-        defaults = get_default_config(command, scf_soft)
+        defaults = get_default_config(task_type, scf_soft)
 
         # Merge defaults with config
         config = merge_configs(defaults, config)
 
-        # Apply parameter inheritance for iterate command
-        if command == 'iterate':
+        # Apply parameter inheritance for iterate type
+        if task_type == 'iterate':
             config = apply_parameter_inheritance(config)
 
         # Dispatch to appropriate handler
