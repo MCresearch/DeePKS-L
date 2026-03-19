@@ -32,7 +32,8 @@ def dispatch_command(config):
         backend = _get_physics_backend(scf_soft)
         backend.collect_stats(**config)
     elif task_type == 'iterate':
-        from deepks.pipelines.iterate.iterate import main as iterate_main
-        iterate_main(**config)
+        # Use new iterate workflow
+        from deepks.workflows.iterate import run_iterate_workflow
+        run_iterate_workflow(config)
     else:
         raise ValueError(f"Unknown type: {task_type}")
