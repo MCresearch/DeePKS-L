@@ -5,7 +5,7 @@ try:
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
-from deepks.cli.main import main_cli
+from deepks.cli.main import main
 
 if __name__ == "__main__":
-    main_cli()
+    main()
