@@ -7,8 +7,9 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
-from deepks.io.transforms.linalg import generalized_eigh
-from deepks.ml.utils import get_density_matrix, cal_phi_loss, cal_v_delta, get_occ_func, make_loss, get_gedm, cal_vdr, loss_hr
+from deepks.io.transforms.linalg import generalized_eigh, eigh_wrapper
+from deepks.ml.utils import get_density_matrix, cal_phi_loss, cal_v_delta, cal_vd_masked_loss_hs, cal_vd_masked_loss_width, cal_bandgap, get_occ_func, make_loss, get_gedm, cal_vdr, loss_hr
+
 
 class Evaluator:
     def __init__(self,
@@ -17,14 +18,20 @@ class Evaluator:
                  v_delta_factor=0., v_delta_r_factor=0.,
                  phi_factor=0., phi_occ=0,
                  band_factor=0.,band_occ=0,
+                 bandgap_factor=0.,bandgap_occ=0,
                  density_m_factor=0.,density_m_occ=0,
+                 phi_align_factor=0., phi_align_occ=0,
                  density_factor=0., grad_penalty=0., 
                  energy_lossfn=None, force_lossfn=None, 
                  stress_lossfn=None, orbital_lossfn=None,
                  v_delta_lossfn=None, v_delta_r_lossfn=None,
-                 phi_lossfn=None, band_lossfn=None, 
-                 density_m_lossfn=None,
-                 energy_per_atom=0,vd_divide_by_nlocal=False):
+                 phi_lossfn=None, phi_align_lossfn=None, 
+                 band_lossfn=None, bandgap_lossfn=None, density_m_lossfn=None,
+                 energy_per_atom=0,vd_divide_by_nlocal=False,
+                 vd_masked_loss=0, 
+                 vd_masked_S_threshold=1e-6, vd_masked_H_threshold=1e-6,
+                 vd_masked_width=1,
+                 use_safe_eigh=False):
         # energy term
         if energy_lossfn is None:
             energy_lossfn = {}
@@ -85,6 +92,14 @@ class Evaluator:
         self.band_factor = band_factor
         self.band_lossfn = band_lossfn   
         self.get_band_occ = get_occ_func(band_occ)   
+        # bandgap term
+        if bandgap_lossfn is None:
+            bandgap_lossfn = {}
+        if isinstance(bandgap_lossfn, dict):
+            bandgap_lossfn = make_loss(**bandgap_lossfn)
+        self.bandgap_factor = bandgap_factor
+        self.bandgap_lossfn = bandgap_lossfn   
+        self.get_bandgap_occ = get_occ_func(bandgap_occ)   
         #density matrix term
         if density_m_lossfn is None:
             density_m_lossfn = {}
@@ -92,13 +107,30 @@ class Evaluator:
             density_m_lossfn = make_loss(**density_m_lossfn)
         self.density_m_factor = density_m_factor
         self.density_m_lossfn = density_m_lossfn   
-        self.get_density_m_occ = get_occ_func(density_m_occ)                  
+        self.get_density_m_occ = get_occ_func(density_m_occ)
+        # phi alignment term
+        if phi_align_lossfn is None:
+            phi_align_lossfn = {}
+        if isinstance(phi_align_lossfn, dict):
+            phi_align_lossfn = make_loss(**phi_align_lossfn)
+        self.phi_align_factor = phi_align_factor
+        self.phi_align_lossfn = phi_align_lossfn   
+        self.get_phi_align_occ = get_occ_func(phi_align_occ)                  
         # coulomb term of dm; requires head gradient
         self.d_factor = density_factor
         # gradient penalty, not very useful
         self.g_penalty = grad_penalty
         # energy loss divide by 1/natom/natom^2
         self.energy_per_atom=energy_per_atom
+        # use safe_eigh to prevent large grad because of decomposition
+        self.use_safe_eigh=use_safe_eigh
+        # use overlap and Hamiltonian matrix magnitude to mask v_delta when calculating loss
+        self.vd_masked_loss=vd_masked_loss
+        # threshold for vd_masked_loss
+        self.vd_masked_S_threshold=vd_masked_S_threshold
+        self.vd_masked_H_threshold=vd_masked_H_threshold
+        # width for vd_masked_loss_width
+        self.vd_masked_width=vd_masked_width
 
     def __call__(self, model, sample):
         _dref = next(model.parameters()).device
@@ -128,6 +160,7 @@ class Evaluator:
                         or (self.vdr_factor > 0 and "lb_vdr" in sample)
                         or (self.phi_factor > 0 and "lb_phi" in sample)
                         or (self.band_factor > 0 and "lb_band" in sample)
+                        or (self.bandgap_factor > 0 and "lb_band" in sample)
                         or (self.density_m_factor > 0)
                         or (self.d_factor > 0 and "gldv" in sample)
                         or self.g_penalty > 0)
@@ -169,9 +202,11 @@ class Evaluator:
                 # print(o_label.shape, op.shape, o_pred.shape, gev.shape)
                 tot_loss = tot_loss + self.o_factor * self.o_lossfn(o_pred, o_label)
                 loss.append(self.o_factor * self.o_lossfn(o_pred, o_label))
-            # optional v_delta/phi/band_energy/density_matrix calculation
+            # optional v_delta/phi/band_energy/density_matrix/phi_alignment calculation
             if (self.vd_factor > 0 and "lb_vd" in sample) or (self.phi_factor > 0 and "lb_phi" in sample) \
-                or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
+                or (self.band_factor > 0 and "lb_band" in sample) or (self.bandgap_factor > 0 and "lb_band" in sample) \
+                or (self.density_m_factor > 0 and "lb_phi" in sample) \
+                or (self.phi_align_factor > 0 and "lb_phi" in sample and "lb_band" in sample):
                 # cal v_delta
                 if "vdp" in sample:
                     vdp = sample["vdp"] # can be complex
@@ -186,20 +221,26 @@ class Evaluator:
                 # optional v_delta calculation
                 if self.vd_factor > 0 and "lb_vd" in sample:
                     vd_label = sample["lb_vd"]
-                    vd_loss = self.vd_factor * self.vd_lossfn(vd_pred, vd_label)
-                    # original: mean method,divide by nlocal**2. vd_divide_by_nlocal:divide by nlocal
-                    if self.vd_divide_by_nlocal:
-                        vd_loss = vd_loss * nlocal
+                    if self.vd_masked_loss :
+                        if self.vd_masked_loss == 1 and "overlap" in sample:
+                            vd_loss = self.vd_factor * cal_vd_masked_loss_hs(vd_pred, vd_label, sample["overlap"], self.vd_masked_S_threshold, self.vd_masked_H_threshold)
+                        elif self.vd_masked_loss == 2:
+                            vd_loss = self.vd_factor * cal_vd_masked_loss_width(vd_pred, vd_label, self.vd_masked_width)
+                    else:
+                        vd_loss = self.vd_factor * self.vd_lossfn(vd_pred, vd_label)
+                        # original: mean method,divide by nlocal**2. vd_divide_by_nlocal:divide by nlocal
+                        if self.vd_divide_by_nlocal:
+                            vd_loss = vd_loss * nlocal
                     tot_loss = tot_loss + vd_loss
                     loss.append(vd_loss)
                 
-                if (self.phi_factor > 0 and "lb_phi" in sample) or (self.band_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
+                if (self.phi_factor > 0 and "lb_phi" in sample) or (self.band_factor > 0 and "lb_band" in sample) or (self.bandgap_factor > 0 and "lb_band" in sample) or (self.density_m_factor > 0 and "lb_phi" in sample):
                     h_base = sample["h_base"]
-                    if "L_inv" in sample:
-                        L_inv=sample["L_inv"]
-                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,L_inv)
+                    if "trans_matrix" in sample:
+                        trans_matrix=sample["trans_matrix"]
+                        band_pred,phi_pred=generalized_eigh(h_base+vd_pred,trans_matrix, self.use_safe_eigh)
                     else:
-                        band_pred,phi_pred= torch.linalg.eigh(h_base+vd_pred,UPLO='U')
+                        band_pred,phi_pred= eigh_wrapper(h_base+vd_pred)
                     # optional phi calculation
                     if self.phi_factor > 0 and "lb_phi" in sample:
                         phi_label = sample["lb_phi"]
@@ -214,6 +255,15 @@ class Evaluator:
                         tot_loss = tot_loss + band_loss
                         # print("occ_band",band_pred[...,:band_occ],band_label[...,:band_occ])
                         loss.append(band_loss)
+                    # optional bandgap calculation
+                    if self.bandgap_factor > 0 and "lb_band" in sample:
+                        band_label=sample["lb_band"]
+                        bandgap_occ=self.get_bandgap_occ(natom)
+                        bandgap_label=cal_bandgap(band_label, bandgap_occ)
+                        bandgap_pred=cal_bandgap(band_pred, bandgap_occ)
+                        bandgap_loss = self.bandgap_factor * self.bandgap_lossfn(bandgap_pred, bandgap_label)
+                        tot_loss = tot_loss + bandgap_loss
+                        loss.append(bandgap_loss)
                     # optional density matrix calculation
                     if self.density_m_factor > 0 and "lb_phi" in sample:
                         # calculate density_m_label every time, kind of waste of time
@@ -224,7 +274,22 @@ class Evaluator:
                         #need to multiply nlocal, reason is the same as v_delta
                         density_m_loss = self.density_m_factor * self.density_m_lossfn(density_m_pred, density_m_label) * nlocal
                         tot_loss = tot_loss + density_m_loss
-                        loss.append(density_m_loss)
+                        loss.append(density_m_loss) 
+                # optional phi alignment calculation, don't need eigh on h_base+vd_pred
+                if self.phi_align_factor > 0 and "lb_phi" in sample and "lb_band" in sample:
+                    phi_label = sample["lb_phi"]
+                    band_label = sample["lb_band"]
+                    h_base = sample["h_base"]
+                    h_tot_pred=h_base+vd_pred
+                    occ = self.get_phi_align_occ(natom)
+                    occ_phi_label = phi_label[..., :occ].clone()
+                    occ_band_label = band_label[..., :occ].clone()
+                    # phi_align_band should close to diagnoal matrix of occ_band_label
+                    phi_align_band = occ_phi_label.mT @ h_tot_pred @ occ_phi_label
+                    true_diag_band = torch.diag_embed(occ_band_label)
+                    phi_align_loss = self.phi_align_factor * self.phi_align_lossfn(phi_align_band, true_diag_band)
+                    tot_loss = tot_loss + phi_align_loss
+                    loss.append(phi_align_loss)
             # optional v_delta_r calculation
             if self.vdr_factor > 0 and "lb_vdr" in sample:
                 vdr_label = sample["lb_vdr"] * 0.5 # Ry2Hartree
@@ -275,9 +340,15 @@ class Evaluator:
         # optional band energy calculation
         if self.band_factor > 0 and "lb_band" in data_keys:
             info+=f"{name}_band".rjust(align_len)
+        # optional bandgap calculation
+        if self.bandgap_factor > 0 and "lb_band" in data_keys:
+            info+=f"{name}_bandgap".rjust(align_len)
         # optional density matrix calculation
         if self.density_m_factor > 0 and "lb_phi" in data_keys:
-            info+=f"{name}_dm".rjust(align_len)             
+            info+=f"{name}_dm".rjust(align_len)    
+        # optional phi alignment calculation
+        if self.phi_align_factor > 0 and "lb_phi" in data_keys and "lb_band" in data_keys:
+            info+=f"{name}_phi_align".rjust(align_len)          
         # density loss with fix head grad
         if self.d_factor > 0 and "gldv" in data_keys:
             info+=f"{name}_density".rjust(align_len)

@@ -36,6 +36,7 @@ class Reader(object):
         h_ref_name=DEFAULT_READER_FIELD_NAMES.h_ref_name,
         read_overlap=False,
         overlap_name=DEFAULT_READER_FIELD_NAMES.overlap_name,
+        eigh_method = 1,
         eg_name=DEFAULT_READER_FIELD_NAMES.eg_name,
         gveg_name=DEFAULT_READER_FIELD_NAMES.gveg_name,
         gldv_name=DEFAULT_READER_FIELD_NAMES.gldv_name,
@@ -78,6 +79,7 @@ class Reader(object):
 
         self.system_raw_path = os.path.join(self.data_path, "system.raw")
         self.read_overlap = read_overlap
+        self.eigh_method = eigh_method
         self.orb_list = ["../../" + orb for orb in orb_list] if orb_list is not None else None
         self.alpha_list = ["../../" + alpha for alpha in alpha_list] if alpha_list is not None else None
         # load data
@@ -200,12 +202,24 @@ class Reader(object):
                 h_ref = torch.tensor(np.load(self.h_ref_path))
                 if self.read_overlap is True and self.overlap_path is not None:
                     overlap = torch.tensor(np.load(self.overlap_path))
-                    L = torch.linalg.cholesky(overlap)
-                    L_inv = torch.linalg.inv(L)
-                    self.t_data["L_inv"] = L_inv.reshape(raw_nframes, -1, self.nlocal, self.nlocal)[
-                        conv
-                    ].clone()
-                    band_ref, phi_ref = generalized_eigh(h_ref, L_inv)
+                    self.t_data["overlap"]=overlap\
+                        .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()
+                    # When overlap matrix is ill-conditioned, the eigenvalues (i.e. band) can suffer from significant roundoff errors.
+                    if self.eigh_method == 1:
+                        L = torch.linalg.cholesky(overlap)
+                        trans_matrix = torch.linalg.inv(L).mT
+                    # Substitute cholesky with eigen decomposition.
+                    # This modification effectively reorders the entries of symm_h, placing larger values towards the upper left-hand corner, thereby enhancing the precision in computing smaller eigenvalues
+                    elif self.eigh_method == 2:
+                        overlap_eigenvalue, overlap_eigenvector = torch.linalg.eigh(overlap)
+                        # replace small eigenvalue with epsilon, avoid numerical instability
+                        epsilon = 1e-16
+                        overlap_eigenvalue = torch.clamp(overlap_eigenvalue, min=epsilon)
+                        sigma_inv_sqrt = torch.diag_embed(1.0 / torch.sqrt(overlap_eigenvalue))
+                        trans_matrix = overlap_eigenvector @ sigma_inv_sqrt
+                    self.t_data["trans_matrix"] = trans_matrix\
+                            .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
+                    band_ref, phi_ref = generalized_eigh(h_ref,trans_matrix)    
                 else:
                     band_ref, phi_ref = torch.linalg.eigh(h_ref, UPLO="U")  # U for upper triangle
                 self.t_data["lb_band"] = band_ref.reshape(raw_nframes, -1, self.nlocal)[conv].clone()
