@@ -11,8 +11,8 @@ import numpy as np
 from pathlib import Path
 from collections import Counter
 
-from deepks.utils import load_sys_paths, get_sys_name
-from deepks.default import NAME_TYPE, TYPE_NAME
+from deepks.io.utils import load_sys_paths, get_sys_name
+from deepks.physics.defaults import NAME_TYPE, TYPE_NAME
 from deepks.orchestration.workflow.task import PythonTask
 
 
@@ -64,7 +64,7 @@ def prepare_abacus_input_files(systems, scf_args, orb_files, pp_files, proj_file
     Returns:
         None (files are written to disk)
     """
-    from deepks.pipelines.iterate.generator_abacus import (
+    from deepks.physics.backends.abacus.input_generator import (
         make_abacus_scf_input,
         make_abacus_scf_stru,
         make_abacus_scf_kpt
@@ -98,7 +98,7 @@ def prepare_abacus_input_files(systems, scf_args, orb_files, pp_files, proj_file
         # Load system-specific config if exists
         scf_args_local = dict(scf_args)
         if os.path.exists(f"{sys_path}/group_scf_abacus.yaml"):
-            from deepks.utils import load_yaml
+            from deepks.io.utils import load_yaml
             local_config = load_yaml(f"{sys_path}/group_scf_abacus.yaml")
             scf_args_local.update(local_config)
 
@@ -176,7 +176,7 @@ def prepare_scf_tasks_abacus(config):
     Returns:
         PythonTask: Preparation task
     """
-    from deepks.utils import flat_file_list
+    from deepks.io.utils import flat_file_list
 
     # Extract systems
     systems = config.get('systems', [])

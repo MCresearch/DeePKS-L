@@ -6,7 +6,7 @@ import pytest
 
 from deepks.workflows.iterate import run_iterate_workflow
 from deepks.orchestration.workflow.task import PythonTask
-from deepks.utils import load_yaml
+from deepks.io.utils import load_yaml
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -49,7 +49,7 @@ def _fake_make_train(*args, **kwargs):
 def _prepare_runtime_tree(monkeypatch):
     _remove_generated()
     # Monkeypatch the template functions used by new workflow
-    from deepks.pipelines.iterate import template_abacus, template
+    from deepks.workflows.iterate import template_abacus, template
     monkeypatch.setattr(template_abacus, "make_scf_abacus", _fake_make_scf_abacus)
     monkeypatch.setattr(template, "make_train", _fake_make_train)
     yield

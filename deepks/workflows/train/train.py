@@ -8,11 +8,11 @@ This module handles the training stage of training workflow:
 
 from typing import Dict, Any, Tuple, Optional
 
-from deepks.core.ml.models.corrnet import CorrNet
-from deepks.core.ml.utils import preprocess, fit_elem_const
-from deepks.core.ml.train.train import train as train_function
+from deepks.ml.models.corrnet import CorrNet
+from deepks.ml.utils import preprocess, fit_elem_const
+from deepks.ml.train.train import train as train_function
 from deepks.io.readers import GroupReader
-from deepks.default import DEVICE
+from deepks.workflows.defaults import DEVICE
 
 
 def train_model(train_reader: GroupReader,

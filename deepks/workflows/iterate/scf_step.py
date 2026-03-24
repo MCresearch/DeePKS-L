@@ -5,8 +5,8 @@ This module creates the SCF step for iteration workflow.
 
 from typing import Dict, Any, Optional
 
-from deepks.pipelines.iterate.template import make_scf
-from deepks.pipelines.iterate.template_abacus import make_scf_abacus
+from .template import make_scf
+from .template_abacus import make_scf_abacus
 
 
 # Constants

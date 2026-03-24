@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
-from deepks.utils import link_file, copy_file, create_dir
-from deepks.utils import check_list
-from deepks.utils import get_abs_path
+from deepks.io.utils import link_file, copy_file, create_dir
+from deepks.io.utils import check_list
+from deepks.io.utils import get_abs_path
 
 import sys
 import subprocess as sp

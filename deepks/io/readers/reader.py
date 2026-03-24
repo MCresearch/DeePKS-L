@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import torch
 
-from deepks.core.ml.utils import cal_nb_overlap, make_integrator
+from deepks.ml.utils import cal_nb_overlap, make_integrator
 from deepks.io.schemas.reader_fields import (
     DEFAULT_READER_FIELD_NAMES,
     ReaderFieldNames,

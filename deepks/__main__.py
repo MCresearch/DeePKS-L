@@ -1,11 +1,10 @@
 import os
 import sys
-try:
-    import deepks
-except ImportError as e:
-    sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../")
 
-from deepks.cli.main import main
+# Add parent directory to path to import main
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from main import main
 
 if __name__ == "__main__":
     main()

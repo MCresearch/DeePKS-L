@@ -1,8 +1,8 @@
 """
-Iterate/SCF shim export compatibility coverage.
+Iterate/SCF export compatibility coverage.
 
 Tests:
-- `test_iterate_shim_exports`
+- `test_iterate_exports`
 - `test_scf_shim_exports`
 """
 
@@ -10,49 +10,46 @@ import importlib
 
 import pytest
 
-import deepks.pipelines.iterate.generator_abacus as iter_gen_shim
-import deepks.pipelines.iterate.template as iter_template_shim
-import deepks.pipelines.iterate.template_abacus as iter_template_abacus_shim
-import deepks.pipelines.iterate.utils as iter_utils_shim
+import deepks.physics.backends.abacus.input_generator as iter_gen_shim
+import deepks.workflows.iterate.template as iter_template_shim
+import deepks.workflows.iterate.template_abacus as iter_template_abacus_shim
 
 
-def test_iterate_shim_exports():
-    iter_template_impl = importlib.import_module("deepks.pipelines.iterate.template")
-    iter_template_abacus_impl = importlib.import_module("deepks.pipelines.iterate.template_abacus")
-    iter_gen_impl = importlib.import_module("deepks.pipelines.iterate.generator_abacus")
-    iter_utils_impl = importlib.import_module("deepks.pipelines.iterate.utils")
+def test_iterate_exports():
+    iter_template_impl = importlib.import_module("deepks.workflows.iterate.template")
+    iter_template_abacus_impl = importlib.import_module("deepks.workflows.iterate.template_abacus")
+    iter_gen_impl = importlib.import_module("deepks.physics.backends.abacus.input_generator")
 
     assert iter_template_shim.make_train is iter_template_impl.make_train
     assert iter_template_abacus_shim.make_scf_abacus is iter_template_abacus_impl.make_scf_abacus
     assert iter_gen_shim.make_abacus_scf_input is iter_gen_impl.make_abacus_scf_input
-    assert iter_utils_shim.NPY_DICT is iter_utils_impl.NPY_DICT
 
 
 def test_scf_package_import_without_pyscf():
-    # SCF pipelines have been removed, skip this test
-    pytest.skip("SCF pipelines removed in refactoring")
+    pytest.importorskip("pyscf")
+    importlib.import_module("deepks.physics.backends.pyscf")
 
 
 def test_scf_shim_exports():
     pytest.importorskip("pyscf")
 
-    import deepks.core.physics.pyscf._old_grad as scf_old_grad_shim
-    import deepks.core.physics.pyscf.addons as scf_addons_shim
-    import deepks.core.physics.pyscf.fields as scf_fields_shim
-    import deepks.core.physics.pyscf.grad as scf_grad_shim
-    import deepks.core.physics.pyscf.penalty as scf_penalty_shim
-    import deepks.core.physics.pyscf.run as scf_run_shim
-    import deepks.core.physics.pyscf.scf as scf_core_shim
-    import deepks.core.physics.pyscf.stats as scf_stats_shim
+    import deepks.physics.backends.pyscf._old_grad as scf_old_grad_shim
+    import deepks.physics.backends.pyscf.addons as scf_addons_shim
+    import deepks.physics.backends.pyscf.fields as scf_fields_shim
+    import deepks.physics.backends.pyscf.grad as scf_grad_shim
+    import deepks.physics.backends.pyscf.penalty as scf_penalty_shim
+    import deepks.physics.backends.pyscf.runner as scf_run_shim
+    import deepks.physics.backends.pyscf.scf as scf_core_shim
+    import deepks.physics.backends.pyscf.stats as scf_stats_shim
 
-    scf_core_impl = importlib.import_module("deepks.core.physics.pyscf.scf")
-    scf_run_impl = importlib.import_module("deepks.core.physics.pyscf.run")
-    scf_stats_impl = importlib.import_module("deepks.core.physics.pyscf.stats")
-    scf_fields_impl = importlib.import_module("deepks.core.physics.pyscf.fields")
-    scf_penalty_impl = importlib.import_module("deepks.core.physics.pyscf.penalty")
-    scf_addons_impl = importlib.import_module("deepks.core.physics.pyscf.addons")
-    scf_grad_impl = importlib.import_module("deepks.core.physics.pyscf.grad")
-    scf_old_grad_impl = importlib.import_module("deepks.core.physics.pyscf._old_grad")
+    scf_core_impl = importlib.import_module("deepks.physics.backends.pyscf.scf")
+    scf_run_impl = importlib.import_module("deepks.physics.backends.pyscf.runner")
+    scf_stats_impl = importlib.import_module("deepks.physics.backends.pyscf.stats")
+    scf_fields_impl = importlib.import_module("deepks.physics.backends.pyscf.fields")
+    scf_penalty_impl = importlib.import_module("deepks.physics.backends.pyscf.penalty")
+    scf_addons_impl = importlib.import_module("deepks.physics.backends.pyscf.addons")
+    scf_grad_impl = importlib.import_module("deepks.physics.backends.pyscf.grad")
+    scf_old_grad_impl = importlib.import_module("deepks.physics.backends.pyscf._old_grad")
 
     assert scf_core_shim.DSCF is scf_core_impl.DSCF
     assert scf_run_shim.main is scf_run_impl.main

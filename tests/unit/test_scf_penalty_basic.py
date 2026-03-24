@@ -17,12 +17,12 @@ import pytest
 
 pytest.importorskip("pyscf")
 
-from deepks.core.physics.pyscf.penalty import CoulombPenalty, DensityPenalty, select_penalty
+from deepks.physics.backends.pyscf.penalty import CoulombPenalty, DensityPenalty, select_penalty
 
 
 def test_select_penalty_basic():
 	"""
-	依赖：`deepks.core.physics.pyscf.penalty.select_penalty`。
+	依赖：`deepks.physics.backends.pyscf.penalty.select_penalty`。
 	测试内容：验证已注册类型名能映射到正确 penalty 类。
 	"""
 	assert select_penalty("density") is DensityPenalty
@@ -31,7 +31,7 @@ def test_select_penalty_basic():
 
 def test_select_penalty_invalid():
 	"""
-	依赖：`deepks.core.physics.pyscf.penalty.select_penalty`。
+	依赖：`deepks.physics.backends.pyscf.penalty.select_penalty`。
 	测试内容：未知 penalty 类型应抛出 `ValueError`。
 	"""
 	with pytest.raises(ValueError):
@@ -40,7 +40,7 @@ def test_select_penalty_invalid():
 
 def test_density_penalty_init_and_defaults(tmp_path):
 	"""
-	依赖：`deepks.core.physics.pyscf.penalty.DensityPenalty`。
+	依赖：`deepks.physics.backends.pyscf.penalty.DensityPenalty`。
 	测试内容：验证目标密度加载、参数初始化与默认字段状态。
 	"""
 	dm = np.eye(2)
@@ -57,7 +57,7 @@ def test_density_penalty_init_and_defaults(tmp_path):
 
 def test_coulomb_penalty_init_and_defaults(tmp_path):
 	"""
-	依赖：`deepks.core.physics.pyscf.penalty.CoulombPenalty`。
+	依赖：`deepks.physics.backends.pyscf.penalty.CoulombPenalty`。
 	测试内容：验证目标密度加载与初始化参数正确。
 	"""
 	dm = np.eye(3)

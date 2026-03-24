@@ -7,6 +7,8 @@ It follows a three-stage pattern but delegates to existing training code.
 from .prepare import prepare_train_data
 from .train import train_model
 from .evaluate import evaluate_model
+from .types import TrainResult
+from dataclasses import asdict
 
 
 def run_train_workflow(config):
@@ -46,12 +48,11 @@ def run_train_workflow(config):
     model, train_stats = train_model(train_data, test_data, model_config)
 
     # Stage 3: Evaluate - Evaluate model performance
-    results = evaluate_model(model, test_data, config)
+    metrics = evaluate_model(model, test_data, config)
 
-    # Combine results
-    results.update({
-        'model_path': config.get('ckpt_file', 'model.pth'),
-        'train_stats': train_stats
-    })
-
-    return results
+    result = TrainResult(
+        model_path=config.get('ckpt_file', 'model.pth'),
+        metrics=metrics,
+        train_stats=train_stats,
+    )
+    return asdict(result)

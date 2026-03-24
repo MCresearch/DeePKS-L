@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from deepks.pipelines.test.test import main as model_test_main
-from deepks.core.ml.train.train import main as train_main
-from deepks.core.physics.pyscf.stats import print_stats as stats_main
-from deepks.utils import load_yaml
+from deepks.ml.eval.test import main as model_test_main
+from deepks.ml.train.train import main as train_main
+from deepks.physics.backends.pyscf.stats import print_stats as stats_main
+from deepks.io.utils import load_yaml
 
 
 def _has_module(name: str) -> bool:

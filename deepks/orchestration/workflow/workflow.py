@@ -1,6 +1,6 @@
 from copy import deepcopy
-from deepks.utils import check_list
-from deepks.utils import get_abs_path
+from deepks.io.utils import check_list
+from deepks.io.utils import get_abs_path
 from deepks.orchestration.workflow.task import AbstructStep
 
 

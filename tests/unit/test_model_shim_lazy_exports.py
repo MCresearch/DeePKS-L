@@ -10,11 +10,11 @@ def test_train_pipeline_exports():
 
 
 def test_core_ml_exports():
-    evaluator_mod = importlib.import_module("deepks.core.ml.eval.evaluator")
-    model_mod = importlib.import_module("deepks.core.ml.models.corrnet")
-    utils_mod = importlib.import_module("deepks.core.ml.utils")
+    evaluator_mod = importlib.import_module("deepks.ml.eval.evaluator")
+    model_mod = importlib.import_module("deepks.ml.models.corrnet")
+    utils_mod = importlib.import_module("deepks.ml.utils")
 
-    assert evaluator_mod.Evaluator.__module__ == "deepks.core.ml.eval.evaluator"
-    assert model_mod.CorrNet.__module__ == "deepks.core.ml.models.corrnet"
-    assert utils_mod.fit_elem_const.__module__ == "deepks.core.ml.utils"
-    assert utils_mod.preprocess.__module__ == "deepks.core.ml.utils"
+    assert evaluator_mod.Evaluator.__module__ == "deepks.ml.eval.evaluator"
+    assert model_mod.CorrNet.__module__ == "deepks.ml.models.corrnet"
+    assert utils_mod.fit_elem_const.__module__ == "deepks.ml.utils"
+    assert utils_mod.preprocess.__module__ == "deepks.ml.utils"

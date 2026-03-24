@@ -9,13 +9,13 @@ from pathlib import Path
 
 import numpy as np
 
-from deepks.pipelines.iterate.template_abacus import make_scf_abacus
+from deepks.workflows.iterate.template_abacus import make_scf_abacus
 from deepks.orchestration.workflow.workflow import Sequence
 
 
 def test_make_scf_abacus_sequence_structure(tmp_path, monkeypatch):
 	"""
-	依赖：`deepks.pipelines.iterate.template_abacus.make_scf_abacus`。
+	依赖：`deepks.workflows.iterate.template_abacus.make_scf_abacus`。
 	测试内容：本地构建 ABACUS SCF workflow，验证返回 `Sequence` 且包含预处理/运行/后处理三个步骤。
 	"""
 	monkeypatch.chdir(tmp_path)

@@ -14,13 +14,13 @@ def test_core_imports_smoke():
     测试内容：验证常用导入路径可解析；若无 `pyscf` 则跳过对应分支。
     """
     import deepks
-    import deepks.cli.main
-    import deepks.core.ml.models.corrnet
+    import deepks.__main__
+    import deepks.ml.models.corrnet
     import deepks.io.readers
-    import deepks.core.ml.eval.evaluator
+    import deepks.ml.eval.evaluator
     import deepks.orchestration.workflow.workflow
 
     pytest.importorskip("pyscf")
-    import deepks.core.physics.pyscf.scf
+    import deepks.physics.backends.pyscf.scf
 
     assert deepks is not None

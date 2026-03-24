@@ -12,13 +12,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from deepks.pipelines.iterate.template_abacus import coord_to_atom, make_convert_scf_abacus
+from deepks.workflows.iterate.template_abacus import coord_to_atom, make_convert_scf_abacus
 from deepks.orchestration.workflow.task import PythonTask
 
 
 def test_coord_to_atom_basic(tmp_path):
 	"""
-	依赖：`deepks.pipelines.iterate.template_abacus.coord_to_atom`。
+	依赖：`deepks.workflows.iterate.template_abacus.coord_to_atom`。
 	测试内容：验证 `coord.npy + type_map.raw + type.raw` 正确合成为 `atom` 三维数组。
 	"""
 	p = tmp_path / "sys"
@@ -37,7 +37,7 @@ def test_coord_to_atom_basic(tmp_path):
 
 def test_coord_to_atom_missing_coord_raises(tmp_path):
 	"""
-	依赖：`deepks.pipelines.iterate.template_abacus.coord_to_atom`。
+	依赖：`deepks.workflows.iterate.template_abacus.coord_to_atom`。
 	测试内容：当缺少 `coord.npy` 时应抛出 `FileNotFoundError`。
 	"""
 	p = tmp_path / "bad"
@@ -48,7 +48,7 @@ def test_coord_to_atom_missing_coord_raises(tmp_path):
 
 def test_make_convert_scf_abacus_returns_pythontask(tmp_path):
 	"""
-	依赖：`deepks.pipelines.iterate.template_abacus.make_convert_scf_abacus`。
+	依赖：`deepks.workflows.iterate.template_abacus.make_convert_scf_abacus`。
 	测试内容：在本地无集群环境下，验证该函数能构建可执行 `PythonTask` 且参数完整。
 	"""
 	trn = tmp_path / "group.00"

@@ -15,7 +15,7 @@ import sys
 
 def test_unified_cli_with_config():
     """测试统一 CLI 加载配置文件。"""
-    from deepks.cli.main import main
+    from deepks.__main__ import main
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('command: scf\n')
@@ -38,7 +38,7 @@ def test_unified_cli_with_config():
 
 def test_unified_cli_missing_command():
     """测试配置文件缺少 command 字段。"""
-    from deepks.cli.main import main
+    from deepks.__main__ import main
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('systems:\n  - sys1\n')
@@ -59,7 +59,7 @@ def test_unified_cli_missing_command():
 
 def test_unified_cli_unknown_command():
     """测试未知命令。"""
-    from deepks.cli.main import main
+    from deepks.__main__ import main
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('command: unknown\n')

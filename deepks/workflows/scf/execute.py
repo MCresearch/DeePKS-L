@@ -9,7 +9,7 @@ This module handles the execution stage of SCF workflow:
 import os
 import numpy as np
 
-from deepks.utils import load_sys_paths, get_sys_name
+from deepks.io.utils import load_sys_paths, get_sys_name
 from deepks.orchestration.workflow.task import BatchTask, GroupBatchTask, DPDispatcherTask
 from deepks.orchestration.workflow.workflow import Sequence
 
@@ -23,7 +23,7 @@ def coord_to_atom(path):
     Returns:
         np.ndarray: Atom data with shape (nframes, natoms, 4)
     """
-    from deepks.default import NAME_TYPE
+    from deepks.physics.defaults import NAME_TYPE
 
     try:
         coords = np.load(f"{path}/coord.npy")
@@ -147,7 +147,7 @@ def build_dpdispatcher_task(sys_paths, sys_names, abacus_path, run_cmd,
     pp_files = scf_abacus.get('pp_files', [])
     proj_file = scf_abacus.get('proj_file', [])
 
-    from deepks.utils import flat_file_list
+    from deepks.io.utils import flat_file_list
     orb_files = [os.path.abspath(s) for s in flat_file_list(orb_files, sort=False)]
     pp_files = [os.path.abspath(s) for s in flat_file_list(pp_files, sort=False)]
     proj_file = [os.path.abspath(s) for s in flat_file_list(proj_file, sort=False)]
@@ -219,7 +219,7 @@ def build_batch_task(sys_paths, sys_names, abacus_path, run_cmd,
     pp_files = scf_abacus.get('pp_files', [])
     proj_file = scf_abacus.get('proj_file', [])
 
-    from deepks.utils import flat_file_list
+    from deepks.io.utils import flat_file_list
     orb_files = [os.path.abspath(s) for s in flat_file_list(orb_files, sort=False)]
     pp_files = [os.path.abspath(s) for s in flat_file_list(pp_files, sort=False)]
     proj_file = [os.path.abspath(s) for s in flat_file_list(proj_file, sort=False)]

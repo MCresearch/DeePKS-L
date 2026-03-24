@@ -1,8 +1,8 @@
 import os
 import pytest
 import contextlib
-from deepks.utils import load_yaml
-from deepks.core.ml.train.train import main as train_main
+from deepks.io.utils import load_yaml
+from deepks.ml.train.train import main as train_main
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 yaml_path = os.path.join(current_dir, "train_input.yaml")

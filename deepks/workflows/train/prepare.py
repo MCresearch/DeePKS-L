@@ -11,8 +11,8 @@ import torch
 from typing import Dict, Any, Tuple, Optional
 
 from deepks.io.readers import GroupReader
-from deepks.utils import load_dirs, load_elem_table
-from deepks.core.ml.utils import fit_elem_const
+from deepks.io.utils import load_dirs, load_elem_table
+from deepks.ml.utils import fit_elem_const
 
 
 def prepare_train_data(config: Dict[str, Any]) -> Tuple[GroupReader, Optional[GroupReader], Dict[str, Any]]:

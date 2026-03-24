@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.utils` 中 I/O 与路径工具函数的核心行为。
+整体覆盖：`deepks.io.utils` 与 `deepks.physics.backends.abacus.utils` 中 I/O/路径与 xyz 工具函数的核心行为。
 
 测试列表：
 - `test_yaml_roundtrip`
@@ -13,19 +13,13 @@ from pathlib import Path
 
 import numpy as np
 
-from deepks.utils import (
-	deep_update,
-	flat_file_list,
-	get_with_prefix,
-	parse_xyz,
-	load_yaml,
-	save_yaml,
-)
+from deepks.io.utils import deep_update, flat_file_list, get_with_prefix, load_yaml, save_yaml
+from deepks.physics.backends.abacus.utils import parse_xyz
 
 
 def test_yaml_roundtrip(tmp_path):
 	"""
-	依赖：`deepks.utils.save_yaml/load_yaml`。
+	依赖：`deepks.io.utils.save_yaml/load_yaml`。
 	测试内容：YAML 保存与读取应保持数据结构一致。
 	"""
 	fp = tmp_path / "cfg" / "a.yaml"
@@ -37,7 +31,7 @@ def test_yaml_roundtrip(tmp_path):
 
 def test_deep_update_recursive():
 	"""
-	依赖：`deepks.utils.deep_update`。
+	依赖：`deepks.io.utils.deep_update`。
 	测试内容：递归更新时子字典应 merge 而非整体覆盖。
 	"""
 	base = {"a": 1, "b": {"x": 1, "y": 2}}
@@ -48,7 +42,7 @@ def test_deep_update_recursive():
 
 def test_get_with_prefix_dir_and_base_modes(tmp_path):
 	"""
-	依赖：`deepks.utils.get_with_prefix`。
+	依赖：`deepks.io.utils.get_with_prefix`。
 	测试内容：验证目录模式与 base 前缀模式都能正确解析；nullable 行为正确。
 	"""
 	d = tmp_path / "d"
@@ -68,7 +62,7 @@ def test_get_with_prefix_dir_and_base_modes(tmp_path):
 
 def test_flat_file_list_with_nested_listfile(tmp_path):
 	"""
-	依赖：`deepks.utils.flat_file_list`。
+	依赖：`deepks.io.utils.flat_file_list`。
 	测试内容：验证支持“文件列表文件”二级展开，并按 filter 过滤目标文件。
 	"""
 	a = tmp_path / "a.xyz"
@@ -87,7 +81,7 @@ def test_flat_file_list_with_nested_listfile(tmp_path):
 
 def test_parse_xyz_basic(tmp_path):
 	"""
-	依赖：`deepks.utils.parse_xyz`。
+	依赖：`deepks.physics.backends.abacus.utils.parse_xyz`。
 	测试内容：验证 xyz 解析出的原子数、注释、元素与坐标形状/数值。
 	"""
 	fp = tmp_path / "m.xyz"

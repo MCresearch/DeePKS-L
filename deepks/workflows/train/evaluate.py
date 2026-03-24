@@ -9,9 +9,9 @@ This module handles the evaluation stage of training workflow:
 import numpy as np
 from typing import Dict, Any, Optional
 
-from deepks.core.ml.models.corrnet import CorrNet
-from deepks.core.ml.eval.evaluator import Evaluator
-from deepks.core.ml.utils import make_loss
+from deepks.ml.models.corrnet import CorrNet
+from deepks.ml.eval.evaluator import Evaluator
+from deepks.ml.utils import make_loss
 from deepks.io.readers import GroupReader
 
 

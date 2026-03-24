@@ -20,16 +20,16 @@ def dispatch_command(config):
         from deepks.workflows.train import run_train_workflow
         run_train_workflow(config)
     elif task_type == 'test':
-        from deepks.pipelines.test.test import main as test_main
+        from deepks.ml.eval.test import main as test_main
         test_main(**config)
     elif task_type == 'scf':
         # Use new SCF workflow
         from deepks.workflows.scf import run_scf_workflow
         run_scf_workflow(config)
     elif task_type == 'stats':
-        from deepks.cli.main import _get_physics_backend
+        from deepks.physics.backends import get_scf_backend
         scf_soft = config.get('scf_soft', 'pyscf')
-        backend = _get_physics_backend(scf_soft)
+        backend = get_scf_backend(scf_soft)
         backend.collect_stats(**config)
     elif task_type == 'iterate':
         # Use new iterate workflow

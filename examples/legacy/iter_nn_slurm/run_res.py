@@ -14,7 +14,7 @@ from deepks.orchestration.workflow.task import BatchTask
 from deepks.orchestration.workflow.task import GroupBatchTask
 from deepks.orchestration.workflow.workflow import Sequence
 from deepks.orchestration.workflow.workflow import Iteration
-from deepks.core.physics.pyscf.stats import collect_data
+from deepks.physics.backends.pyscf.stats import collect_data
 
 
 niter = 5

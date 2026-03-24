@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.utils` 中张量与索引工具函数。
+整体覆盖：`deepks.physics.backends.abacus.utils` 中张量与索引工具函数。
 
 测试列表：
 - `test_r2ir_ir2r_for_int_numpy_torch`
@@ -9,12 +9,12 @@
 import numpy as np
 import torch
 
-from deepks.utils import R2iR, iR2R, read_csr
+from deepks.physics.backends.abacus.utils import R2iR, iR2R, read_csr
 
 
 def test_r2ir_ir2r_for_int_numpy_torch():
 	"""
-	依赖：`deepks.utils.R2iR/iR2R`。
+	依赖：`deepks.physics.backends.abacus.utils.R2iR/iR2R`。
 	测试内容：验证 int / numpy / torch 三类输入的双向转换一致性。
 	"""
 	assert R2iR(0) == 0
@@ -37,7 +37,7 @@ def test_r2ir_ir2r_for_int_numpy_torch():
 
 def test_read_csr_minimal(tmp_path):
 	"""
-	依赖：`deepks.utils.read_csr`。
+	依赖：`deepks.physics.backends.abacus.utils.read_csr`。
 	测试内容：构造最小 CSR 文本，验证稀疏张量维度与非零元素正确读取。
 	"""
 	fp = tmp_path / "m.csr"

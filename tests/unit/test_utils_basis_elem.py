@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.utils` 中 basis 与元素常数表工具函数。
+整体覆盖：`deepks.physics.backends.pyscf.basis` 与 `deepks.io.utils` 中 basis/元素常数表工具函数。
 
 测试列表：
 - `test_load_basis_from_npy_and_npz`
@@ -9,18 +9,13 @@
 
 import numpy as np
 
-from deepks.utils import (
-	get_shell_sec,
-	load_basis,
-	load_elem_table,
-	save_basis,
-	save_elem_table,
-)
+from deepks.physics.backends.pyscf.basis import get_shell_sec, load_basis, save_basis
+from deepks.io.utils import load_elem_table, save_elem_table
 
 
 def test_load_basis_from_npy_and_npz(tmp_path):
 	"""
-	依赖：`deepks.utils.load_basis`。
+	依赖：`deepks.physics.backends.pyscf.basis.load_basis`。
 	测试内容：验证从 `.npy` 与 `.npz` 两种文件格式加载 basis 的行为。
 	"""
 	table = np.array([[1.0, 2.0], [3.0, 4.0]])
@@ -39,7 +34,7 @@ def test_load_basis_from_npy_and_npz(tmp_path):
 
 def test_save_basis_and_get_shell_sec(tmp_path):
 	"""
-	依赖：`deepks.utils.save_basis/get_shell_sec/load_basis`。
+	依赖：`deepks.physics.backends.pyscf.basis.save_basis/get_shell_sec/load_basis`。
 	测试内容：验证 basis 保存后可读回，且 `get_shell_sec` 结果正确。
 	"""
 	basis = [
@@ -57,7 +52,7 @@ def test_save_basis_and_get_shell_sec(tmp_path):
 
 def test_elem_table_roundtrip(tmp_path):
 	"""
-	依赖：`deepks.utils.save_elem_table/load_elem_table`。
+	依赖：`deepks.io.utils.save_elem_table/load_elem_table`。
 	测试内容：验证元素常数表文件写入与读取回环一致。
 	"""
 	fn = tmp_path / "elem.tab"

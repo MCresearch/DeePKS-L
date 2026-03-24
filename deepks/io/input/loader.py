@@ -1,7 +1,7 @@
 """Configuration loader for DeePKS."""
 
 import os
-from deepks.utils import load_yaml
+from deepks.io.utils import load_yaml
 
 
 def load_config(config_path):

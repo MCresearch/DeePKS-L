@@ -17,9 +17,9 @@ import numpy as np
 import pytest
 import torch
 
-from deepks.core.ml.eval.evaluator import Evaluator, NatomLossList
+from deepks.ml.eval.evaluator import Evaluator, NatomLossList
 from deepks.io.readers import SimpleReader
-from deepks.utils import get_shell_sec
+from deepks.physics.backends.pyscf.basis import get_shell_sec
 
 
 LEGACY_MODEL_REFS = {
@@ -100,7 +100,7 @@ def _has_module(name: str) -> bool:
 
 def test_migrated_model_get_shell_sec_sample():
     """
-    依赖：`deepks.utils.get_shell_sec`。
+    依赖：`deepks.physics.backends.pyscf.basis.get_shell_sec`。
     测试内容：迁移历史 `test_get_shell_sec` 样例，验证 basis 到 shell section 的映射结果。
     """
     basis = [[0, [0, 0, 0]], [1, [0, 0, 0]], [2, [0, 0, 0]]]
@@ -184,7 +184,7 @@ def test_migrated_reader_reference_data_catalog():
 
 def test_migrated_natomlosslist_sample(capsys):
     """
-    依赖：`deepks.core.ml.eval.evaluator.NatomLossList`。
+    依赖：`deepks.ml.eval.evaluator.NatomLossList`。
     测试内容：迁移历史 `test_NatomLossList` 样例与参考数据，验证分 natom 聚合、均值统计及异常分支。
     """
     nll = NatomLossList()
@@ -237,7 +237,7 @@ def test_migrated_natomlosslist_sample(capsys):
 
 def test_migrated_evaluator_legacy_sample(capsys):
     """
-    依赖：`deepks.core.ml.eval.evaluator.Evaluator`。
+    依赖：`deepks.ml.eval.evaluator.Evaluator`。
     测试内容：迁移历史 `test_Evaluator` 的字段、参数和参考向量定义，验证损失项数量与表头输出。
     """
 

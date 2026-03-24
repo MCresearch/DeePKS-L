@@ -5,7 +5,7 @@ This module creates the training step for iteration workflow.
 
 from typing import Dict, Any, Optional
 
-from deepks.pipelines.iterate.template import make_train
+from .template import make_train
 
 
 # Constants

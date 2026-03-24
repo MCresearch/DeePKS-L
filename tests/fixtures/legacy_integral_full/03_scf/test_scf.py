@@ -1,7 +1,7 @@
 import os
 import pytest
 import contextlib
-from deepks.utils import load_yaml
+from deepks.io.utils import load_yaml
 # from deepks.pipelines.scf.run import main as scf_main
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
