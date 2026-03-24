@@ -12,11 +12,14 @@ class Shell(Batch) :
     def check_status(self) :
         if self.check_finish_tag():
             return JobStatus.finished
-        elif self.check_running() or self.check_submitted_tag():
+        elif self.check_running():
             return JobStatus.running
         else:
             return JobStatus.terminated
-        ## warn: cannont distinguish terminated from unsubmitted.
+        ## note: check_submitted_tag() only tells us the .sub file exists (was submitted),
+        ## not that the process is still running. Using it here caused an infinite loop
+        ## when a job failed: the .sub file remains, so check_status() kept returning
+        ## 'running' forever instead of 'terminated'.
 
     def check_running(self):
         uuid_names = self.context.job_uuid

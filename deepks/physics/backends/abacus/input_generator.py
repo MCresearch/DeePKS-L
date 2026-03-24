@@ -301,7 +301,7 @@ def make_abacus_scf_stru(sys_data: Dict[str, Any],
             ret += f"{valid_orb_files[atom]}\n"
 
     # DeepKS descriptor
-    if (fp_params.get("deepks_scf") and
+    if (fp_params.get("deepks_scf") == 1 or
         fp_params.get("deepks_out_labels") == 1):
         ret += "\nNUMERICAL_DESCRIPTOR\n"
         ret += f"{fp_params['proj_file'][0]}\n"
