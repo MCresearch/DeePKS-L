@@ -66,13 +66,13 @@ def _fake_make_train(*args, **kwargs):
 
 @pytest.fixture(autouse=True)
 def _prepare_runtime_tree(monkeypatch):
-    # _remove_generated()
+    _remove_generated()
     if not ABACUS_AVAILABLE:
         from deepks.workflows.iterate import scf_step, train_step
         monkeypatch.setattr(scf_step, "make_scf_abacus", _fake_make_scf_abacus)
         monkeypatch.setattr(train_step, "make_train", _fake_make_train)
     yield
-    # _remove_generated()
+    _remove_generated()
 
 
 def run_iter():
