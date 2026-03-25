@@ -159,10 +159,7 @@ def prepare_scf_tasks(config):
     if scf_soft.lower() == 'abacus':
         return prepare_scf_tasks_abacus(config)
     elif scf_soft.lower() == 'pyscf':
-        # PySCF preparation (to be implemented or kept as is)
-        raise NotImplementedError(
-            "PySCF workflow not yet implemented in new architecture"
-        )
+        return prepare_scf_tasks_pyscf(config)
     else:
         raise ValueError(f"Unknown SCF backend: {scf_soft}")
 
@@ -218,3 +215,9 @@ def prepare_scf_tasks_abacus(config):
     )
 
     return task
+
+
+def prepare_scf_tasks_pyscf(config):
+    """PySCF SCF - no separate preparation needed; return a BlankTask."""
+    from deepks.orchestration.workflow.task import BlankTask
+    return BlankTask(workdir='.')

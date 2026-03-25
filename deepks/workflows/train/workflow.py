@@ -9,6 +9,8 @@ from .train import train_model
 from .evaluate import evaluate_model
 from .types import TrainResult
 from dataclasses import asdict
+import sys
+from contextlib import redirect_stdout
 
 
 def run_train_workflow(config):
@@ -47,8 +49,21 @@ def run_train_workflow(config):
     # Stage 2: Train - Train the model
     model, train_stats = train_model(train_data, test_data, model_config)
 
-    # Stage 3: Evaluate - Evaluate model performance
+    # Stage 3: Evaluate - Evaluate model performance and write log.test
     metrics = evaluate_model(model, test_data, config)
+
+    # Reproduce legacy log.test: run test() with stdout redirected
+    ckpt_file = config.get('ckpt_file', 'model.pth')
+    test_log = config.get('test_log', 'log.test')
+    if test_data is not None:
+        from deepks.ml.eval.test import test as run_test
+        # Reconstruct the header line that GroupReader prints at construction time
+        data_keys = list(dict.fromkeys(test_data.readers[0].sample_all().keys()))
+        header_line = f'# load {test_data.nsystems} systems with fields {data_keys}'
+        with open(test_log, 'w', 1) as f_test, redirect_stdout(f_test):
+            print(header_line)
+            print(ckpt_file)
+            run_test(model, test_data, dump_prefix=None)
 
     result = TrainResult(
         model_path=config.get('ckpt_file', 'model.pth'),

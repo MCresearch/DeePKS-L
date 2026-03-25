@@ -31,19 +31,6 @@ def dispatch_command(config):
         scf_soft = config.get('scf_soft', 'pyscf')
         backend = get_scf_backend(scf_soft)
         backend.collect_stats(**config)
-    elif task_type == 'scf_task':
-        # Low-level per-task SCF runner (called by BatchTask in iterate workflow)
-        from deepks.physics.backends.pyscf.run import main as scf_run_main
-        # Strip orchestration-only keys that pyscf.run.main() doesn't understand
-        scf_config = {k: v for k, v in config.items()
-                      if k not in ('type', 'scf_soft')}
-        scf_run_main(**scf_config)
-    elif task_type == 'train_task':
-        # Low-level training runner (called by BatchTask in iterate workflow)
-        from deepks.ml.train.train import main as train_main
-        train_config = {k: v for k, v in config.items()
-                        if k not in ('type',)}
-        train_main(**train_config)
     elif task_type == 'iterate':
         # Use new iterate workflow
         from deepks.workflows.iterate import run_iterate_workflow

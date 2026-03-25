@@ -44,7 +44,7 @@ def _remove_generated() -> None:
 
 
 def _fake_make_scf_abacus(*args, **kwargs):
-    from deepks.orchestration.scheduler.task import PythonTask
+    from deepks.orchestration.workflow.task import PythonTask
     workdir = kwargs.get("workdir", "00.scf")
 
     def _run_mock_scf():
@@ -55,7 +55,7 @@ def _fake_make_scf_abacus(*args, **kwargs):
 
 
 def _fake_make_train(*args, **kwargs):
-    from deepks.orchestration.scheduler.task import PythonTask
+    from deepks.orchestration.workflow.task import PythonTask
     workdir = kwargs.get("workdir", "01.train")
 
     def _run_mock_train():
@@ -66,13 +66,13 @@ def _fake_make_train(*args, **kwargs):
 
 @pytest.fixture(autouse=True)
 def _prepare_runtime_tree(monkeypatch):
-    _remove_generated()
+    # _remove_generated()
     if not ABACUS_AVAILABLE:
         from deepks.workflows.iterate import scf_step, train_step
         monkeypatch.setattr(scf_step, "make_scf_abacus", _fake_make_scf_abacus)
         monkeypatch.setattr(train_step, "make_train", _fake_make_train)
     yield
-    _remove_generated()
+    # _remove_generated()
 
 
 def run_iter():

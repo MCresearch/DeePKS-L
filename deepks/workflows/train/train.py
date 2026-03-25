@@ -69,7 +69,10 @@ def train_model(train_reader: GroupReader,
 
     # Train model
     print('# starting training')
-    train_function(model, train_reader, test_reader=test_reader, **train_args)
+    import inspect
+    valid_train_keys = set(inspect.signature(train_function).parameters.keys())
+    filtered_train_args = {k: v for k, v in train_args.items() if k in valid_train_keys}
+    train_function(model, train_reader, test_reader=test_reader, **filtered_train_args)
 
     # Collect training statistics
     train_stats = {

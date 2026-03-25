@@ -87,7 +87,7 @@ def make_scf_task(*, workdir=".",
 
     # --- build per-task override dict ---
     TASK_YAML = "_scf_task.yaml"
-    overrides = {"type": "scf_task"}
+    overrides = {"type": "scf", "scf_soft": "pyscf"}
     if sys_str is not None:
         overrides["systems"] = sys_str
     if model_file:
@@ -275,21 +275,19 @@ def make_train_task(*, workdir=".",
                     python="python", **task_args):
     """Create a training task as a BatchTask running via the unified 'deepks' CLI.
 
-    All training parameters are folded into a per-task YAML (_train_task.yaml)
-    with type: train_task.  The YAML is written to disk during preprocess()
-    (not via a shell one-liner), so the command is simply:
-        deepks _train_task.yaml
+    The base train_input.yaml (from share) is read at construction time, merged
+    with runtime overrides (train_paths, test_paths, type, restart, etc.), and
+    written back to train_input.yaml in the workdir during preprocess().  No
+    separate _train_task.yaml is created.
     """
-    link_share = task_args.pop("link_share_files", [])
+    from deepks.io.utils import load_yaml, deep_update
+
     link_prev  = task_args.pop("link_prev_files",  [])
+    link_share = task_args.pop("link_share_files", [])
     forward_files  = task_args.pop("forward_files",  [])
     backward_files = task_args.pop("backward_files", [])
 
-    # --- file links ---
-    if arg_file and source_arg is not None:
-        link_share.append((source_arg, arg_file))
-    if arg_file:
-        forward_files.append(arg_file)
+    # --- file links (everything except train_input.yaml, which we write ourselves) ---
     if restart_model and source_model is not None:
         link_prev.append((source_model, restart_model))
         forward_files.append(restart_model)
@@ -305,24 +303,27 @@ def make_train_task(*, workdir=".",
     if save_model:
         backward_files.append(save_model)
 
-    # --- build per-task YAML overrides ---
-    TASK_YAML = "_train_task.yaml"
-    overrides = {"type": "train_task"}
+    # --- read base train_input.yaml from source_arg (share folder) if available ---
+    base_config = {}
+    if source_arg is not None and os.path.exists(source_arg):
+        base_config = load_yaml(source_arg) or {}
+
+    # --- build runtime overrides and merge into base ---
+    overrides = {"type": "train"}
     if data_train:
-        overrides["train_paths"] = os.path.join(data_train, "*")
+        overrides["systems_train"] = os.path.join(data_train, "*")
     if data_test:
-        overrides["test_paths"] = os.path.join(data_test, "*")
+        overrides["systems_test"] = os.path.join(data_test, "*")
     if restart_model:
         overrides["restart"] = restart_model
     if proj_basis:
         overrides["proj_basis"] = proj_basis
     if save_model:
-        overrides.setdefault("train_args", {})["ckpt_file"] = save_model
+        overrides["ckpt_file"] = save_model
 
-    # Write the YAML at construction time; BatchTask.preprocess() writes it to
-    # disk before the shell command runs — no fragile python -c one-liner needed.
-    task_yaml_content = dump_yaml_str(overrides)
-    command = f"{SCF_CMD} {TASK_YAML}"
+    merged = deep_update(dict(base_config), overrides)
+    task_yaml_content = dump_yaml_str(merged)
+    command = f"{SCF_CMD} {arg_file}"
 
     return BatchTask(
         command,
@@ -336,7 +337,7 @@ def make_train_task(*, workdir=".",
         link_prev_files=link_prev,
         forward_files=forward_files,
         backward_files=backward_files,
-        write_files={TASK_YAML: task_yaml_content},
+        write_files={arg_file: task_yaml_content},
         **task_args
     )
 

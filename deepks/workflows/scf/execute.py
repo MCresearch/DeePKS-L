@@ -262,3 +262,24 @@ def build_batch_task(sys_paths, sys_names, abacus_path, run_cmd,
         forward_files=forward_files,
         backward_files=backward_files
     )
+
+
+def execute_scf_tasks_pyscf(prepare_task, config):
+    """Execute SCF via PySCF by calling pyscf.run.main() directly."""
+    from deepks.physics.backends.pyscf.run import main as pyscf_main
+    from deepks.orchestration.workflow.task import PythonTask
+    from deepks.orchestration.workflow.workflow import Sequence
+
+    call_kwargs = {
+        k: v for k, v in config.items()
+        if k not in ('type', 'scf_soft')
+    }
+    run_task = PythonTask(
+        pyscf_main,
+        call_kwargs=call_kwargs,
+        outlog=config.get('outlog', 'log.scf'),
+        errlog='err',
+        workdir='.'
+    )
+    workflow = Sequence([prepare_task, run_task], workdir='.')
+    workflow.run()

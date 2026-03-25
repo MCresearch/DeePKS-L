@@ -90,10 +90,10 @@ scf_soft: abacus
 scf_abacus:
   #INPUT args
   ntype: 2
-  ecutwfc: 50
-  scf_thr: 1e-5
+  ecutwfc: 100
+  scf_thr: 1e-7
   scf_nmax: 50
-  dft_functional: "lda"
+  dft_functional: "pbe"
   gamma_only: 1
   #STRU args
   orb_files:
@@ -115,10 +115,10 @@ init_scf_abacus:
   proj_file: 
     - "../../data/jle.orb"
   ntype: 2
-  ecutwfc: 50
-  scf_thr: 1e-5
+  ecutwfc: 100
+  scf_thr: 1e-7
   scf_nmax: 50
-  dft_functional: "lda"
+  dft_functional: "pbe"
   gamma_only: 1
   lattice_constant: 1.8897261255
   coord_type: "Cartesian"
