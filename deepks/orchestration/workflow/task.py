@@ -190,11 +190,13 @@ class BatchTask(AbstructTask):
     - outlog: the file to redirect stdout to.
     - errlog: the file to redirect stderr to.
     - *_files: the files to forward or backward.
+    - write_files: dict of {filename: content} to write into workdir during preprocess.
     '''
-    def __init__(self, cmds, 
-                 dispatcher=None, resources=None, 
-                 outlog='log', errlog='err', 
+    def __init__(self, cmds,
+                 dispatcher=None, resources=None,
+                 outlog='log', errlog='err',
                  forward_files=None, backward_files=None,
+                 write_files=None,
                  **task_args):
         super().__init__(**task_args)
         self.cmds = check_list(cmds)
@@ -209,10 +211,18 @@ class BatchTask(AbstructTask):
         self.errlog = errlog
         self.forward_files = check_list(forward_files)
         self.backward_files = check_list(backward_files)
-    
+        self.write_files = write_files or {}
+
+    def preprocess(self):
+        super().preprocess()
+        for fname, content in self.write_files.items():
+            fpath = self.workdir / fname
+            fpath.parent.mkdir(parents=True, exist_ok=True)
+            fpath.write_text(content)
+
     def execute(self):
         tdict = self.make_dict(base=self.workdir)
-        self.dispatcher.run_jobs([tdict], group_size=1, work_path='.', 
+        self.dispatcher.run_jobs([tdict], group_size=1, work_path='.',
                                  resources=self.resources, forward_task_deref=True,
                                  outlog=self.outlog, errlog=self.errlog)
 

@@ -19,7 +19,8 @@ def create_train_step(train_args_name: Optional[str],
                       train_machine: Dict[str, Any],
                       proj_basis: Optional[str],
                       share_folder: str,
-                      cleanup: bool):
+                      cleanup: bool,
+                      restart: bool = True):
     """Create training step for iteration.
 
     Args:
@@ -28,6 +29,8 @@ def create_train_step(train_args_name: Optional[str],
         proj_basis: Projection basis file
         share_folder: Share folder path
         cleanup: Whether to cleanup
+        restart: Whether to load model from previous iteration.
+                 Set False for the very first iteration when no prior model exists.
 
     Returns:
         Task: Training step task
@@ -35,7 +38,7 @@ def create_train_step(train_args_name: Optional[str],
     train_step = make_train(
         source_train=DATA_TRAIN,
         source_test=DATA_TEST,
-        restart=True,
+        restart=restart,
         source_model=MODEL_FILE,
         save_model=MODEL_FILE,
         source_pbasis=proj_basis,

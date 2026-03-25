@@ -257,6 +257,6 @@ def main(train_paths, test_paths=None,
     # print("all train time:",end-start)
 
 
-if __name__ == "__main__":
-    from deepks.__main__ import train_cli as cli
-    cli()
+# This module is not intended to be run directly.
+# Training is invoked via PythonTask from the iterate workflow (template.py),
+# which calls main() directly in-process.

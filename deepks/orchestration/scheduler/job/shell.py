@@ -9,6 +9,10 @@ def _default_item(resources, key, value) :
 
 class Shell(Batch) :
 
+    def __init__(self, context, uuid_names=True):
+        super().__init__(context, uuid_names=uuid_names)
+        self.proc = None
+
     def check_status(self) :
         if self.check_finish_tag():
             return JobStatus.finished
@@ -16,25 +20,28 @@ class Shell(Batch) :
             return JobStatus.running
         else:
             return JobStatus.terminated
-        ## note: check_submitted_tag() only tells us the .sub file exists (was submitted),
-        ## not that the process is still running. Using it here caused an infinite loop
-        ## when a job failed: the .sub file remains, so check_status() kept returning
-        ## 'running' forever instead of 'terminated'.
 
     def check_running(self):
+        # Primary check: use the stored Popen object (reliable, no ps-grep fragility)
+        if self.proc is not None:
+            if self.proc.poll() is None:
+                # process is still alive
+                return True
+            # process has exited; give the finish tag a moment to be flushed
+            time.sleep(2)
+            return False
+        # Fallback for recovered jobs (proc not available): use ps grep
         uuid_names = self.context.job_uuid
-        ## Check if the uuid.sub is running on remote machine
-        cnt = 0
-        ret, stdin, stdout, stderr = self.context.block_call("ps aux | grep %s"%uuid_names)
+        ret, stdin, stdout, stderr = self.context.block_call("ps aux | grep %s" % uuid_names)
         response_list = stdout.read().decode('utf-8').split("\n")
         for response in response_list:
-            if  uuid_names + ".sub" in response:
+            if uuid_names + ".sub" in response:
                 return True
         return False
-    
+
     def exec_sub_script(self, script_str):
         self.context.write_file(self.sub_script_name, script_str)
-        self.proc = self.context.call('cd %s && exec bash %s' % (self.context.remote_root, self.sub_script_name))
+        self.proc = self.context.call('cd %s && bash %s' % (self.context.remote_root, self.sub_script_name))
 
     def default_resources(self, res_) :
         if res_ is None :

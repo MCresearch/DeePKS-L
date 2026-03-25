@@ -1,13 +1,18 @@
 import os
 import numpy as np
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 from glob import glob
 from collections import Counter
 from deepks.workflows.defaults import CMODEL_FILE
 from deepks.physics.defaults import NAME_TYPE, TYPE_NAME
 from deepks.io.utils import flat_file_list, load_dirs
 from deepks.io.utils import get_sys_name, load_sys_paths
+from deepks.io.utils import coerce_box, coerce_energy, coerce_stress
 from deepks.physics.backends.abacus.utils import read_csr
+
 from deepks.orchestration.workflow.task import PythonTask
 from deepks.orchestration.workflow.task import BatchTask, GroupBatchTask, DPDispatcherTask
 from deepks.orchestration.workflow.workflow import Sequence
@@ -342,10 +347,306 @@ def make_run_scf_abacus(systems_train, systems_test=None,
 
 
 
-def gather_stats_abacus(systems_train, systems_test, 
-                train_dump, test_dump, cal_force=0, cal_stress=0, deepks_bandgap=0, deepks_v_delta=0, **stat_args):
+def _load_frame(arr_dict, key, frame_idx, nframes, data):
+    """Load a per-frame npy array into a pre-allocated or newly created array."""
+    if arr_dict[key] is None:
+        arr_dict[key] = np.empty((nframes,) + data.shape, dtype=data.dtype)
+    assert data.shape == arr_dict[key].shape[1:], (
+        f"Shape of {key} {arr_dict[key].shape} does not match {data.shape}!")
+    arr_dict[key][frame_idx] = data
+
+
+def _collect_frames(sys_path, nframes, cal_force, cal_stress,
+                    deepks_bandgap, deepks_v_delta, deepks_scf):
     """
-    Gather statistics for training and testing data from ABACUS calculations. 
+    Loop over frames for one system and collect all per-frame arrays.
+    Returns a dict of numpy arrays.
+    """
+    arrs = dict(
+        dm_eig=None,
+        e_tot=None, e_base=None,
+        f_tot=None, f_base=None, gvx=None,
+        s_tot=None, s_base=None, gvepsl=None,
+        o_tot=None, o_base=None, orbital_precalc=None,
+        h_tot=None, h_base=None,
+        v_delta_precalc=None, phialpha=None, gevdm=None,
+        hr_tot=None, hr_base=None, vdr_precalc=None,
+    )
+    conv = np.full((nframes, 1), False)
+
+    for f in range(nframes):
+        load_f_path = f"{sys_path}/ABACUS/{f}/OUT.ABACUS/"
+
+        # Convergence
+        with open(f"{sys_path}/ABACUS/{f}/conv") as conv_file:
+            ic = [t.strip('#').upper() for t in conv_file.read().split()]
+            if ("CONVERGED" in ic or "ACHIEVED" in ic) and "NOT" not in ic:
+                conv[int(ic[0])] = True
+
+        # Descriptor
+        _load_frame(arrs, 'dm_eig', f, nframes, np.load(load_f_path + "deepks_dm_eig.npy"))
+
+        # Energy
+        e_tot_data = np.load(load_f_path + "deepks_etot.npy")
+        _load_frame(arrs, 'e_tot', f, nframes, e_tot_data)
+        if deepks_scf:
+            _load_frame(arrs, 'e_base', f, nframes, np.load(load_f_path + "deepks_ebase.npy"))
+        else:
+            _load_frame(arrs, 'e_base', f, nframes, e_tot_data)
+
+        # Forces
+        if cal_force:
+            f_tot_data = np.load(load_f_path + "deepks_ftot.npy")
+            _load_frame(arrs, 'f_tot', f, nframes, f_tot_data)
+            if deepks_scf:
+                _load_frame(arrs, 'f_base', f, nframes, np.load(load_f_path + "deepks_fbase.npy"))
+            else:
+                _load_frame(arrs, 'f_base', f, nframes, f_tot_data)
+            if os.path.exists(load_f_path + "deepks_gradvx.npy"):
+                _load_frame(arrs, 'gvx', f, nframes, np.load(load_f_path + "deepks_gradvx.npy"))
+
+        # Stress
+        if cal_stress:
+            s_tot_data = np.load(load_f_path + "deepks_stot.npy")
+            _load_frame(arrs, 's_tot', f, nframes, s_tot_data)
+            if deepks_scf:
+                _load_frame(arrs, 's_base', f, nframes, np.load(load_f_path + "deepks_sbase.npy"))
+            else:
+                _load_frame(arrs, 's_base', f, nframes, s_tot_data)
+            if os.path.exists(load_f_path + "deepks_gvepsl.npy"):
+                _load_frame(arrs, 'gvepsl', f, nframes, np.load(load_f_path + "deepks_gvepsl.npy"))
+
+        # Bandgap (orbital)
+        if deepks_bandgap:
+            o_tot_data = np.load(load_f_path + "deepks_otot.npy")
+            _load_frame(arrs, 'o_tot', f, nframes, o_tot_data)
+            if deepks_scf:
+                _load_frame(arrs, 'o_base', f, nframes, np.load(load_f_path + "deepks_obase.npy"))
+            else:
+                _load_frame(arrs, 'o_base', f, nframes, o_tot_data)
+            if os.path.exists(load_f_path + "deepks_orbpre.npy"):
+                _load_frame(arrs, 'orbital_precalc', f, nframes, np.load(load_f_path + "deepks_orbpre.npy"))
+
+        # V_delta / Hamiltonian (k-space)
+        if deepks_v_delta > 0:
+            h_tot_data = np.load(load_f_path + "deepks_htot.npy")
+            _load_frame(arrs, 'h_tot', f, nframes, h_tot_data)
+            if deepks_scf:
+                _load_frame(arrs, 'h_base', f, nframes, np.load(load_f_path + "deepks_hbase.npy"))
+            else:
+                _load_frame(arrs, 'h_base', f, nframes, h_tot_data)
+            if deepks_v_delta == 1 and os.path.exists(load_f_path + "deepks_vdpre.npy"):
+                _load_frame(arrs, 'v_delta_precalc', f, nframes, np.load(load_f_path + "deepks_vdpre.npy"))
+            elif deepks_v_delta == 2:
+                if (os.path.exists(load_f_path + "deepks_phialpha.npy") and
+                        os.path.exists(load_f_path + "deepks_gevdm.npy")):
+                    _load_frame(arrs, 'phialpha', f, nframes, np.load(load_f_path + "deepks_phialpha.npy"))
+                    _load_frame(arrs, 'gevdm',    f, nframes, np.load(load_f_path + "deepks_gevdm.npy"))
+
+        # V_delta_R / Hamiltonian (real-space)
+        if deepks_v_delta < 0:
+            def _pad3(a, target):
+                """Pad the first 3 spatial dims of a to match target size."""
+                n_add = target - a.shape[0]
+                if n_add > 0:
+                    a = np.pad(a, ((0,n_add),(0,n_add),(0,n_add),(0,0),(0,0)))
+                return a
+
+            hrcs = read_csr(load_f_path + "deepks_hrtot.csr").to_dense().numpy()
+            # grow hr_tot if needed
+            if arrs['hr_tot'] is None:
+                arrs['hr_tot'] = np.empty((nframes,) + hrcs.shape, dtype=hrcs.dtype)
+            elif hrcs.shape[0] > arrs['hr_tot'].shape[1]:
+                n = hrcs.shape[0] - arrs['hr_tot'].shape[1]
+                arrs['hr_tot'] = np.pad(arrs['hr_tot'], ((0,0),(0,n),(0,n),(0,n),(0,0),(0,0)))
+            elif hrcs.shape[0] < arrs['hr_tot'].shape[1]:
+                hrcs = _pad3(hrcs, arrs['hr_tot'].shape[1])
+            arrs['hr_tot'][f] = hrcs
+
+            if os.path.exists(load_f_path + "deepks_hrdelta.csr"):
+                v_delta_r = read_csr(load_f_path + "deepks_hrdelta.csr").to_dense().numpy()
+                # align shapes
+                if v_delta_r.shape[0] < hrcs.shape[0]:
+                    v_delta_r = _pad3(v_delta_r, hrcs.shape[0])
+                elif v_delta_r.shape[0] > hrcs.shape[0]:
+                    hrcs = _pad3(hrcs, v_delta_r.shape[0])
+                if deepks_scf:
+                    hrtmp = hrcs - v_delta_r
+                else:
+                    hrtmp = hrcs  # base == tot when deepks_scf=0
+                if arrs['hr_base'] is None:
+                    arrs['hr_base'] = np.empty((nframes,) + hrtmp.shape, dtype=hrtmp.dtype)
+                elif hrtmp.shape[0] > arrs['hr_base'].shape[1]:
+                    n = hrtmp.shape[0] - arrs['hr_base'].shape[1]
+                    arrs['hr_base'] = np.pad(arrs['hr_base'], ((0,0),(0,n),(0,n),(0,n),(0,0),(0,0)))
+                elif hrtmp.shape[0] < arrs['hr_base'].shape[1]:
+                    hrtmp = _pad3(hrtmp, arrs['hr_base'].shape[1])
+                arrs['hr_base'][f] = hrtmp
+
+            if deepks_v_delta == -1 and os.path.exists(load_f_path + "deepks_vdrpre.npy"):
+                tmp = np.load(load_f_path + "deepks_vdrpre.npy")
+                if arrs['vdr_precalc'] is None:
+                    arrs['vdr_precalc'] = np.empty((nframes,) + tmp.shape, dtype=tmp.dtype)
+                elif tmp.shape[0] > arrs['vdr_precalc'].shape[1]:
+                    n = tmp.shape[0] - arrs['vdr_precalc'].shape[1]
+                    arrs['vdr_precalc'] = np.pad(arrs['vdr_precalc'],
+                                                  ((0,0),(0,n),(0,n),(0,n),(0,0),(0,0),(0,0),(0,0)))
+                elif tmp.shape[0] < arrs['vdr_precalc'].shape[1]:
+                    n = arrs['vdr_precalc'].shape[1] - tmp.shape[0]
+                    tmp = np.pad(tmp, ((0,n),(0,n),(0,n),(0,0),(0,0),(0,0),(0,0)))
+                arrs['vdr_precalc'][f] = tmp
+            elif deepks_v_delta == -2 and os.path.exists(load_f_path + "deepks_gevdm.npy"):
+                _load_frame(arrs, 'gevdm', f, nframes, np.load(load_f_path + "deepks_gevdm.npy"))
+
+    arrs['conv'] = conv
+    return arrs
+
+
+def _save_system_data(save_path, load_ref_path, arrs,
+                     nframes, natoms, cal_force, cal_stress,
+                     deepks_bandgap, deepks_v_delta):
+    """Save collected arrays for one system."""
+    os.makedirs(save_path, exist_ok=True)
+
+    np.save(save_path + "conv.npy",   arrs['conv'])
+    np.save(save_path + "dm_eig.npy", arrs['dm_eig'])
+
+    # Energy
+    e_base = coerce_energy(arrs['e_base'], nframes, 'e_base.npy')
+    e_tot  = coerce_energy(arrs['e_tot'],  nframes, 'e_tot.npy')
+    e_ref  = coerce_energy(np.load(load_ref_path + "energy.npy"), nframes, 'energy.npy')
+    np.save(save_path + "e_base.npy",    e_base)
+    np.save(save_path + "e_tot.npy",     e_tot)
+    np.save(save_path + "energy.npy",    e_ref)
+    np.save(save_path + "l_e_delta.npy", e_ref - e_base)
+
+    np.save(save_path + "atom.npy", arrs['atom_data'])
+    np.save(save_path + "box.npy",  arrs['box_data'])
+
+    # Forces
+    if cal_force:
+        f_ref = np.load(load_ref_path + "force.npy")
+        if f_ref.shape != (nframes, natoms, 3):
+            raise ValueError(f"force.npy shape should be (nframes,natoms,3), got {f_ref.shape}.")
+        np.save(save_path + "f_base.npy",    arrs['f_base'])
+        np.save(save_path + "f_tot.npy",     arrs['f_tot'])
+        np.save(save_path + "force.npy",     f_ref)
+        np.save(save_path + "l_f_delta.npy", f_ref - arrs['f_base'])
+        if arrs['gvx'] is not None:
+            np.save(save_path + "grad_vx.npy", arrs['gvx'])
+
+    # Stress
+    if cal_stress:
+        s_ref  = coerce_stress(np.load(load_ref_path + "stress.npy"), nframes, 'stress.npy')
+        s_base = coerce_stress(arrs['s_base'], nframes, 's_base')
+        s_tot  = coerce_stress(arrs['s_tot'],  nframes, 's_tot')
+        np.save(save_path + "s_base.npy",    s_base)
+        np.save(save_path + "s_tot.npy",     s_tot)
+        np.save(save_path + "stress.npy",    s_ref)
+        np.save(save_path + "l_s_delta.npy", s_ref - s_base)
+        if arrs['gvepsl'] is not None:
+            np.save(save_path + "grad_epsilon.npy", arrs['gvepsl'])
+
+    # Bandgap (orbital)
+    if deepks_bandgap:
+        o_ref = np.load(load_ref_path + "orbital.npy")
+        if o_ref.shape[0] != nframes or o_ref.shape[2] != 1:
+            raise ValueError(f"orbital.npy shape should be (nframes,nkpt,1), got {o_ref.shape}.")
+        np.save(save_path + "o_base.npy",    arrs['o_base'])
+        np.save(save_path + "o_tot.npy",     arrs['o_tot'])
+        np.save(save_path + "orbital.npy",   o_ref)
+        np.save(save_path + "l_o_delta.npy", o_ref - arrs['o_base'])
+        if arrs['orbital_precalc'] is not None:
+            np.save(save_path + "orbital_precalc.npy", arrs['orbital_precalc'])
+
+    # V_delta / Hamiltonian (k-space, deepks_v_delta > 0)
+    if deepks_v_delta > 0:
+        h_ref = np.load(load_ref_path + "hamiltonian.npy")
+        if h_ref.shape[0] != nframes or h_ref.ndim != 4:
+            raise ValueError(f"hamiltonian.npy shape should be (nframes,nkpt,nlocal,nlocal), got {h_ref.shape}.")
+        np.save(save_path + "h_base.npy",      arrs['h_base'])
+        np.save(save_path + "h_tot.npy",       arrs['h_tot'])
+        np.save(save_path + "hamiltonian.npy", h_ref)
+        np.save(save_path + "l_h_delta.npy",   h_ref - arrs['h_base'])
+        if arrs['v_delta_precalc'] is not None:
+            np.save(save_path + "v_delta_precalc.npy", arrs['v_delta_precalc'])
+        elif arrs['phialpha'] is not None and arrs['gevdm'] is not None:
+            np.save(save_path + "grad_evdm.npy", arrs['gevdm'])
+            np.save(save_path + "phialpha.npy",  arrs['phialpha'])
+        if os.path.exists(load_ref_path + "overlap.npy"):
+            np.save(save_path + "overlap.npy", np.load(load_ref_path + "overlap.npy"))
+
+    # V_delta_R / Hamiltonian (real-space, deepks_v_delta < 0)
+    if deepks_v_delta < 0:
+        hr_ref = np.load(load_ref_path + "hamiltonian_r.npy")
+        if hr_ref.shape[0] != nframes or hr_ref.ndim != 6:
+            raise ValueError(f"hamiltonian_r.npy shape should be (nframes,nR,nR,nR,nlocal,nlocal), got {hr_ref.shape}.")
+        # align spatial dims between hr_base/hr_tot and hr_ref
+        for key in ('hr_base', 'hr_tot'):
+            arr = arrs[key]
+            if arr is None:
+                continue
+            if arr.shape[1] < hr_ref.shape[1]:
+                n = hr_ref.shape[1] - arr.shape[1]
+                arrs[key] = np.pad(arr, ((0,0),(0,n),(0,n),(0,n),(0,0),(0,0)))
+            elif arr.shape[1] > hr_ref.shape[1]:
+                n = arr.shape[1] - hr_ref.shape[1]
+                hr_ref = np.pad(hr_ref, ((0,0),(0,n),(0,n),(0,n),(0,0),(0,0)))
+        np.save(save_path + "hamiltonian_r.npy", hr_ref)
+        if arrs['hr_tot'] is not None:
+            np.save(save_path + "hr_tot.npy", arrs['hr_tot'])
+        if arrs['hr_base'] is not None:
+            np.save(save_path + "hr_base.npy",    arrs['hr_base'])
+            np.save(save_path + "l_hr_delta.npy", hr_ref - arrs['hr_base'])
+        if deepks_v_delta == -1 and arrs['vdr_precalc'] is not None:
+            np.save(save_path + "vdr_precalc.npy", arrs['vdr_precalc'])
+        elif deepks_v_delta == -2 and arrs['gevdm'] is not None:
+            np.save(save_path + "grad_evdm.npy", arrs['gevdm'])
+
+
+def collect_data(systems, save_dir, ref_dir,
+                cal_force=True, cal_stress=False,
+                deepks_bandgap=False, deepks_v_delta=0,
+                deepks_scf=True):
+    """Collect data from multiple systems and save to save_dir."""
+    for sys in systems:
+        print(f"Collecting system: {sys}")
+        load_ref_path = os.path.join(ref_dir, sys, "")
+        save_path     = os.path.join(save_dir, sys, "")
+
+        # count frames
+        nframes = len(np.load(load_ref_path + "energy.npy"))
+        # count atoms
+        atom_data = np.load(load_ref_path + "atom.npy")
+        natoms    = int(atom_data[0].sum())
+
+        arrs = _collect_system_data(
+            load_ref_path, nframes, natoms,
+            cal_force, cal_stress,
+            deepks_bandgap, deepks_v_delta, deepks_scf
+        )
+
+        _save_system_data(
+            save_path, load_ref_path, arrs,
+            nframes, natoms,
+            cal_force, cal_stress,
+            deepks_bandgap, deepks_v_delta
+        )
+        print(f"  -> saved to {save_path}")
+
+
+def gather_stats_abacus(systems_train, systems_test,
+                        train_dump, test_dump,
+                        cal_force=0, cal_stress=0,
+                        deepks_bandgap=0, deepks_v_delta=0,
+                        deepks_scf=1, **stat_args):
+    """
+    Gather statistics for training and testing data from ABACUS calculations.
+
+    When deepks_scf=0 the DeePKS correction was not applied, so
+    etot==ebase (and likewise for forces / stress / etc.).  The *base
+    arrays are therefore set equal to the *tot arrays without reading
+    separate *base.npy files from disk.
     """
     sys_train_paths = [os.path.abspath(s) for s in load_sys_paths(systems_train)]
     sys_test_paths = [os.path.abspath(s) for s in load_sys_paths(systems_test)]
@@ -358,777 +659,68 @@ def gather_stats_abacus(systems_train, systems_test,
     if test_dump is None:
         test_dump = "."
 
-    # concatenate data (train)
-    if not os.path.exists(train_dump):
-        os.mkdir(train_dump)
-    for i in range(len(systems_train)):
-        load_ref_path = f"{sys_train_paths[i]}/"
-        save_path = f"{train_dump}/{sys_train_names[i]}/"
-        if not os.path.exists(train_dump + '/' + sys_train_names[i]):
-            os.mkdir(train_dump + '/' + sys_train_names[i])
-        try:
-            atom_data = np.load(load_ref_path + "atom.npy")
-        except FileNotFoundError:
-            atom_data = coord_to_atom(sys_train_paths[i])
-        nframes = atom_data.shape[0]
-        natoms = atom_data.shape[1]
-        if atom_data.shape[2] != 4:
-            raise ValueError("atom.npy should have shape (nframes, natoms, 4)")
-        # Get lattice constant
-        if os.path.isfile(load_ref_path + "box.npy"):
-            box_data = np.load(load_ref_path + "box.npy")
-        else:
-            box_data = np.array([stat_args["lattice_vector"]]) # shape (3, 3)
-            # duplicate for each frame
-            box_data = box_data.reshape(1, 9).repeat(nframes, axis=0)
-        box_data = box_data.reshape(nframes, 3, 3) # shape (nframes, 3, 3)
-        # if coord_type is direct, multiply by lattice constant
-        if stat_args["coord_type"] == "Direct":
-            atom_data[:, :, 1:4] = np.matmul(atom_data[:, :, 1:4], box_data)  # Direct to Cartesian
-        # Convert unit to Bohr
-        atom_data[:, :, 1:4] *= stat_args['lattice_constant']  # to Bohr
-        box_data *= stat_args['lattice_constant']  # to Bohr
+    def _process_systems(sys_paths, sys_names, dump_dir):
+        os.makedirs(dump_dir, exist_ok=True)
+        for sys_path, sys_name in zip(sys_paths, sys_names):
+            load_ref_path = sys_path + "/"
+            save_path = f"{dump_dir}/{sys_name}/"
+            os.makedirs(save_path, exist_ok=True)
 
-        ## Initialize of properties list
-        conv = np.full((nframes,1), False) # convergence of each frame
-        dm_eig = None # descriptor
+            # Load geometry
+            try:
+                atom_data = np.load(load_ref_path + "atom.npy")
+            except FileNotFoundError:
+                atom_data = coord_to_atom(sys_path)
+            nframes = atom_data.shape[0]
+            natoms  = atom_data.shape[1]
+            if atom_data.shape[2] != 4:
+                raise ValueError("atom.npy should have shape (nframes, natoms, 4)")
 
-        # properties for base model
-        e_base = None
-        f_base = None
-        s_base = None
-        o_base = None
-        h_base = None
-        hr_base = None
-
-        # properties for total model
-        e_tot = None
-        f_tot = None
-        s_tot = None
-        o_tot = None
-        h_tot = None
-        hr_tot = None
-
-        # properties for deepks calculation
-        gvx = None
-        gvepsl = None
-        orbital_precalc = None
-        v_delta_precalc = None
-        vdr_precalc = None
-        phialpha = None
-        gevdm = None
-        overlap = None
-
-        ## Main loop over frames in training data
-        for f in range(nframes):
-            load_f_path = f"{sys_train_paths[i]}/ABACUS/{f}/OUT.ABACUS/"
-            # Check convergence of each frame
-            with open(f"{sys_train_paths[i]}/ABACUS/{f}/conv","r") as conv_file:
-                ic=conv_file.read().split()
-                ic = [item.strip('#').upper() for item in ic]
-                if ("CONVERGED" in ic or "ACHIEVED" in ic) and "NOT" not in ic:
-                    conv[(int)(ic[0])]=True
-
-            # Energy and eigenvalues of density matrix
-            des = np.load(load_f_path + "deepks_dm_eig.npy")
-            if dm_eig is None:
-                dm_eig = np.empty((nframes,) + des.shape, dtype=des.dtype)
-            assert des.shape == dm_eig.shape[1:], f"Shape of dm_eig {dm_eig.shape} does not match with {des.shape}!"
-            dm_eig[f] = des
-
-            ene = np.load(load_f_path + "deepks_ebase.npy")
-            if e_base is None:
-                e_base = np.empty((nframes,) + ene.shape, dtype=ene.dtype)
-            assert ene.shape == e_base.shape[1:], f"Shape of e_base {e_base.shape} does not match with {ene.shape}!"
-            e_base[f] = ene
-
-            ene = np.load(load_f_path + "deepks_etot.npy")
-            if e_tot is None:
-                e_tot = np.empty((nframes,) + ene.shape, dtype=ene.dtype)
-            assert ene.shape == e_tot.shape[1:], f"Shape of e_tot {e_tot.shape} does not match with {ene.shape}!"
-            e_tot[f] = ene
-
-            # Forces 
-            if(cal_force):
-                fcs = np.load(load_f_path + "deepks_fbase.npy")
-                if f_base is None:
-                    f_base = np.empty((nframes,) + fcs.shape, dtype=fcs.dtype)
-                assert fcs.shape == f_base.shape[1:], f"Shape of f_base {f_base.shape} does not match with {fcs.shape}!"
-                f_base[f] = fcs
-
-                fcs = np.load(load_f_path + "deepks_ftot.npy")
-                if f_tot is None:
-                    f_tot = np.empty((nframes,) + fcs.shape, dtype=fcs.dtype)
-                assert fcs.shape == f_tot.shape[1:], f"Shape of f_tot {f_tot.shape} does not match with {fcs.shape}!"
-                f_tot[f] = fcs
-
-                if os.path.exists(load_f_path + "deepks_gradvx.npy"):
-                    gvx_tmp = np.load(load_f_path + "deepks_gradvx.npy")
-                    if gvx is None:
-                        gvx = np.empty((nframes,) + gvx_tmp.shape, dtype=gvx_tmp.dtype)
-                    assert gvx_tmp.shape == gvx.shape[1:], f"Shape of gvx {gvx.shape} does not match with {gvx_tmp.shape}!"
-                    gvx[f] = gvx_tmp
-
-            # Stress
-            if(cal_stress):
-                scs=np.load(load_f_path + "deepks_sbase.npy")
-                if s_base is None:
-                    s_base = np.empty((nframes,) + scs.shape, dtype=scs.dtype)
-                assert scs.shape == s_base.shape[1:], f"Shape of s_base {s_base.shape} does not match with {scs.shape}!"
-                s_base[f] = scs
-                
-                scs=np.load(load_f_path + "deepks_stot.npy")
-                if s_tot is None:
-                    s_tot = np.empty((nframes,) + scs.shape, dtype=scs.dtype)
-                assert scs.shape == s_tot.shape[1:], f"Shape of s_tot {s_tot.shape} does not match with {scs.shape}!"
-                s_tot[f] = scs
-
-                if os.path.exists(load_f_path + "deepks_gvepsl.npy"):
-                    gvepsl_tmp = np.load(load_f_path + "deepks_gvepsl.npy")
-                    if gvepsl is None:
-                        gvepsl = np.empty((nframes,) + gvepsl_tmp.shape, dtype=gvepsl_tmp.dtype)
-                    assert gvepsl_tmp.shape == gvepsl.shape[1:], f"Shape of gvepsl {gvepsl.shape} does not match with {gvepsl_tmp.shape}!"
-                    gvepsl[f] = gvepsl_tmp
-
-            # Bandgap (orbital)
-            if(deepks_bandgap):
-                ocs = np.load(load_f_path + "deepks_obase.npy")
-                if o_base is None:
-                    o_base = np.empty((nframes,) + ocs.shape, dtype=ocs.dtype)
-                assert ocs.shape == o_base.shape[1:], f"Shape of o_base {o_base.shape} does not match with {ocs.shape}!"
-                o_base[f] = ocs 
-                    
-                ocs = np.load(load_f_path + "deepks_otot.npy")
-                if o_tot is None:
-                    o_tot = np.empty((nframes,) + ocs.shape, dtype=ocs.dtype)
-                assert ocs.shape == o_tot.shape[1:], f"Shape of o_tot {o_tot.shape} does not match with {ocs.shape}!"
-                o_tot[f] = ocs 
-                
-                if os.path.exists(load_f_path + "deepks_orbpre.npy"):
-                    orbital_precalc_tmp = np.load(load_f_path + "deepks_orbpre.npy")
-                    if orbital_precalc is None:
-                        orbital_precalc = np.empty((nframes,) + orbital_precalc_tmp.shape, dtype=orbital_precalc_tmp.dtype)
-                    assert orbital_precalc_tmp.shape == orbital_precalc.shape[1:], f"Shape of orbital_precalc {orbital_precalc.shape} does not match with {orbital_precalc_tmp.shape}!"
-                    orbital_precalc[f] = orbital_precalc_tmp
-
-            # V_delta (Hamiltonian) 
-            if(deepks_v_delta > 0):
-                hcs = np.load(load_f_path + "deepks_hbase.npy")
-                if h_base is None:
-                    h_base = np.empty((nframes,) + hcs.shape, dtype=hcs.dtype)
-                assert hcs.shape == h_base.shape[1:], f"Shape of h_base {h_base.shape} does not match with {hcs.shape}!"
-                h_base[f] = hcs 
-                
-                hcs = np.load(load_f_path + "deepks_htot.npy")
-                if h_tot is None:
-                    h_tot = np.empty((nframes,) + hcs.shape, dtype=hcs.dtype)
-                assert hcs.shape == h_tot.shape[1:], f"Shape of h_tot {h_tot.shape} does not match with {hcs.shape}!"
-                h_tot[f] = hcs 
-                
-                if deepks_v_delta == 1:
-                    if os.path.exists(load_f_path + "deepks_vdpre.npy"):
-                        v_delta_precalc_tmp = np.load(load_f_path + "deepks_vdpre.npy")
-                        if v_delta_precalc is None:
-                            v_delta_precalc = np.empty((nframes,) + v_delta_precalc_tmp.shape, dtype=v_delta_precalc_tmp.dtype)
-                        assert v_delta_precalc_tmp.shape == v_delta_precalc.shape[1:], f"Shape of v_delta_precalc {v_delta_precalc.shape} does not match with {v_delta_precalc_tmp.shape}!"
-                        v_delta_precalc[f] = v_delta_precalc_tmp
-                elif deepks_v_delta == 2:
-                    if os.path.exists(load_f_path + "deepks_phialpha.npy") and os.path.exists(load_f_path + "deepks_gevdm.npy"):
-                        phialpha_tmp = np.load(load_f_path + "deepks_phialpha.npy")
-                        # complex double to complex float
-                        # phialpha_tmp = phialpha_tmp.astype(np.complex64)
-                        if phialpha is None:
-                            phialpha = np.empty((nframes,) + phialpha_tmp.shape, dtype=phialpha_tmp.dtype)
-                        assert phialpha_tmp.shape == phialpha.shape[1:], f"Shape of phialpha {phialpha.shape} does not match with {phialpha_tmp.shape}!"
-                        phialpha[f] = phialpha_tmp
-                        
-                        gevdm_tmp = np.load(load_f_path + "deepks_gevdm.npy")
-                        if gevdm is None:
-                            gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
-                        assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
-                        gevdm[f] = gevdm_tmp
-
-            # V_delta_R (Hamiltonian)
-            if(deepks_v_delta < 0):
-                hrcs = read_csr(load_f_path + "deepks_hrtot.csr")
-                hrcs = hrcs.to_dense().numpy()
-                if hr_tot is None:
-                    hr_tot = np.empty((nframes,) + hrcs.shape, dtype=hrcs.dtype)
-                if (hrcs.shape[0] > hr_tot.shape[1]):
-                    # use np.pad to fill zeros in hr_tot
-                    n_add = hrcs.shape[0] - hr_tot.shape[1]
-                    hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                elif (hrcs.shape[0] < hr_tot.shape[1]):
-                    # use np.pad to fill zeros in hrcs
-                    n_add = hr_tot.shape[1] - hrcs.shape[0]
-                    hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                assert hrcs.shape == hr_tot.shape[1:], f"Shape of hr_tot {hr_tot.shape} does not match with {hrcs.shape}!"
-                hr_tot[f] = hrcs
-                if os.path.exists(load_f_path + "deepks_hrdelta.csr"):
-                    v_delta_r = read_csr(load_f_path + "deepks_hrdelta.csr")
-                    v_delta_r = v_delta_r.to_dense().numpy()
-                    if (v_delta_r.shape != hrcs.shape):
-                        # padding the smaller one to match the shape
-                        if v_delta_r.shape[0] < hrcs.shape[0]:
-                            n_add = hrcs.shape[0] - v_delta_r.shape[0]
-                            v_delta_r = np.pad(v_delta_r, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                        elif v_delta_r.shape[0] > hrcs.shape[0]:
-                            n_add = v_delta_r.shape[0] - hrcs.shape[0]
-                            hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    hrtmp = hrcs - v_delta_r
-                    if hr_base is None:
-                        hr_base = np.empty((nframes,) + hrtmp.shape, dtype=hrtmp.dtype)
-                    if (hrtmp.shape[0] > hr_base.shape[1]):
-                        # use np.pad to fill zeros in hr_base
-                        n_add = hrtmp.shape[0] - hr_base.shape[1]
-                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    elif (hrtmp.shape[0] < hr_base.shape[1]):
-                        # use np.pad to fill zeros in hrtmp
-                        n_add = hr_base.shape[1] - hrtmp.shape[0]
-                        hrtmp = np.pad(hrtmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    assert hrtmp.shape[3:] == hr_base.shape[4:], f"Shape of hr_base {hr_base.shape} does not match with {hrtmp.shape}!"
-                    hr_base[f] = hrtmp
-                if deepks_v_delta == -1:
-                    if os.path.exists(load_f_path + "deepks_vdrpre.npy"):
-                        vdr_precalc_tmp = np.load(load_f_path + "deepks_vdrpre.npy")
-                        if vdr_precalc is None:
-                            vdr_precalc = np.empty((nframes,) + vdr_precalc_tmp.shape, dtype=vdr_precalc_tmp.dtype)
-                        if (vdr_precalc_tmp.shape[0] > vdr_precalc.shape[1]):
-                            # use np.pad to fill zeros in vdr_precalc
-                            n_add = vdr_precalc_tmp.shape[0] - vdr_precalc.shape[1]
-                            vdr_precalc = np.pad(vdr_precalc, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                        elif (vdr_precalc_tmp.shape[0] < vdr_precalc.shape[1]):
-                            # use np.pad to fill zeros in vdr_precalc_tmp
-                            n_add = vdr_precalc.shape[1] - vdr_precalc_tmp.shape[0]
-                            vdr_precalc_tmp = np.pad(vdr_precalc_tmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                        assert vdr_precalc_tmp.shape == vdr_precalc.shape[1:], f"Shape of vdr_precalc {vdr_precalc.shape} does not match with {vdr_precalc_tmp.shape}!"
-                        vdr_precalc[f] = vdr_precalc_tmp
-                elif deepks_v_delta == -2:
-                    if os.path.exists(load_f_path + "deepks_gevdm.npy"):
-                        gevdm_tmp = np.load(load_f_path + "deepks_gevdm.npy")
-                        if gevdm is None:
-                            gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
-                        assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
-                        gevdm[f] = gevdm_tmp
-        
-        ## Save data    
-        # Convergence      
-        np.save(save_path + "conv.npy", conv)
-        del conv
-
-        # Energy and eigenvalues of density matrix
-        np.save(save_path + "dm_eig.npy", dm_eig)
-        del dm_eig
-
-        np.save(save_path + "e_base.npy", e_base)    #Ry to Hartree
-        e_ref = np.load(load_ref_path + "energy.npy")
-        if e_ref.shape != (nframes, 1):
-            if e_ref.shape == (nframes,):
-                e_ref = e_ref.reshape((nframes, 1))
-                print(f"energy.npy shape {e_ref.shape} is reshaped to {(nframes, 1)}")
+            if os.path.isfile(load_ref_path + "box.npy"):
+                box_data = coerce_box(np.load(load_ref_path + "box.npy"), nframes, 'box.npy')
+                box_data = box_data.reshape(nframes, 3, 3)
             else:
-                raise ValueError(f"energy.npy shape should be (nframes, 1), but got {e_ref.shape}.")
-        np.save(save_path + "energy.npy", e_ref)
-        np.save(save_path + "l_e_delta.npy", e_ref-e_base)
-        np.save(save_path + "e_tot.npy", e_tot)
-        del e_base, e_tot, e_ref
-        
-        np.save(save_path + "atom.npy", atom_data)
-        del atom_data
-        np.save(save_path + "box.npy", box_data)
-        del box_data
+                box_data = np.array([stat_args["lattice_vector"]])
+                box_data = box_data.reshape(1, 9).repeat(nframes, axis=0)
+            box_data = box_data.reshape(nframes, 3, 3)
 
-        # Forces
-        if(cal_force): 
-            np.save(save_path + "f_base.npy", f_base)
-            f_ref = np.load(load_ref_path + "force.npy")
-            if f_ref.shape != (nframes, natoms, 3):
-                raise ValueError(f"force.npy shape should be (nframes, natoms, 3), but got {f_ref.shape}.")
-            np.save(save_path + "force.npy", f_ref)
-            np.save(save_path + "l_f_delta.npy", f_ref-f_base)
-            np.save(save_path + "f_tot.npy", f_tot)
-            del f_base, f_tot, f_ref
-            if gvx is not None:
-                np.save(save_path + "grad_vx.npy", gvx)
-                del gvx
+            if stat_args.get("coord_type") == "Direct":
+                atom_data[:, :, 1:4] = np.matmul(atom_data[:, :, 1:4], box_data)
+            atom_data[:, :, 1:4] *= stat_args['lattice_constant']
+            box_data *= stat_args['lattice_constant']
 
-        # Stress
-        if(cal_stress): 
-            np.save(save_path + "s_base.npy", s_base)
-            s_ref = np.load(load_ref_path + "stress.npy")
-            if s_ref.shape != (nframes, 9):
-                raise ValueError(f"stress.npy shape should be (nframes, 9), but got {s_ref.shape}.")
-            s_ref = s_ref[:,[0,1,2,4,5,8]] #only train the upper-triangle part
-            np.save(save_path + "stress.npy", s_ref)
-            np.save(save_path + "l_s_delta.npy", s_ref-s_base)
-            np.save(save_path + "s_tot.npy", s_tot)
-            del s_base, s_tot, s_ref
-            if gvepsl is not None:
-                np.save(save_path + "grad_epsilon.npy", gvepsl)
-                del gvepsl
+            # Collect per-frame arrays
+            arrs = _collect_frames(
+                sys_path, nframes,
+                cal_force, cal_stress,
+                deepks_bandgap, deepks_v_delta, deepks_scf
+            )
+            arrs['atom_data'] = atom_data
+            arrs['box_data']  = box_data
 
-        # Bandgap (orbital)
-        if(deepks_bandgap): 
-            np.save(save_path + "o_base.npy", o_base)
-            o_ref = np.load(load_ref_path + "orbital.npy")
-            if o_ref.shape[0] != nframes or o_ref.shape[2] != 1:
-                raise ValueError(f"orbital.npy shape should be (nframes, nkpt, 1), but got {o_ref.shape}.")
-            np.save(save_path + "orbital.npy", o_ref)
-            np.save(save_path + "l_o_delta.npy", o_ref-o_base)
-            np.save(save_path + "o_tot.npy", o_tot)
-            del o_base, o_tot, o_ref
-            if orbital_precalc is not None:
-                np.save(save_path + "orbital_precalc.npy", orbital_precalc)
-                del orbital_precalc
+            # Save
+            _save_system_data(
+                save_path, load_ref_path, arrs,
+                nframes, natoms,
+                cal_force, cal_stress,
+                deepks_bandgap, deepks_v_delta
+            )
 
-        # V_delta (Hamiltonian)
-        if(deepks_v_delta > 0): 
-            np.save(save_path + "h_base.npy", h_base)
-            h_ref = np.load(load_ref_path + "hamiltonian.npy")
-            if h_ref.shape[0] != nframes or h_ref.ndim != 4:
-                raise ValueError(f"hamiltonian.npy shape should be (nframes, nkpt, nlocal, nlocal), but got {h_ref.shape}.")
-            np.save(save_path + "hamiltonian.npy", h_ref)
-            np.save(save_path + "l_h_delta.npy", h_ref-h_base)
-            np.save(save_path + "h_tot.npy", h_tot)
-            del h_base, h_tot, h_ref
-            if v_delta_precalc is not None:
-                np.save(save_path + "v_delta_precalc.npy", v_delta_precalc)
-                del v_delta_precalc
-            elif phialpha is not None and gevdm is not None:
-                np.save(save_path + "grad_evdm.npy", gevdm)
-                del gevdm
-                np.save(save_path + "phialpha.npy", phialpha)
-                del phialpha
-            if os.path.exists(load_ref_path + "overlap.npy"):
-                overlap = np.load(load_ref_path + "overlap.npy")
-                np.save(save_path + "overlap.npy", overlap)
-                del overlap
-
-        # V_delta_R (Hamiltonian)
-        if(deepks_v_delta < 0):
-            hr_ref = np.load(load_ref_path + "hamiltonian_r.npy")
-            if hr_ref.shape[0] != nframes or hr_ref.ndim != 6:
-                raise ValueError(f"hamiltonian_r.npy shape should be (nframes, nR, nR, nR, nlocal, nlocal), but got {hr_ref.shape}.")
-            # make sure hr_base, hr_tot have the same shape as hr_ref
-            if hr_base is not None:
-                if hr_base.shape[1:] != hr_ref.shape[1:]:
-                    if hr_base.shape[1] < hr_ref.shape[1]:
-                        n_add = hr_ref.shape[1] - hr_base.shape[1]
-                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    elif hr_base.shape[1] > hr_ref.shape[1]:
-                        n_add = hr_base.shape[1] - hr_ref.shape[1]
-                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-            if hr_tot is not None:
-                if hr_tot.shape[1:] != hr_ref.shape[1:]:
-                    if hr_tot.shape[1] < hr_ref.shape[1]:
-                        n_add = hr_ref.shape[1] - hr_tot.shape[1]
-                        hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    elif hr_tot.shape[1] > hr_ref.shape[1]:
-                        n_add = hr_tot.shape[1] - hr_ref.shape[1]
-                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-            np.save(save_path + "hamiltonian_r.npy", hr_ref)
-            np.save(save_path + "hr_base.npy", hr_base)
-            np.save(save_path + "hr_tot.npy", hr_tot)
-            np.save(save_path + "l_hr_delta.npy", hr_ref-hr_base)
-            del hr_base, hr_tot, hr_ref
-            if vdr_precalc is not None:
-                np.save(save_path + "vdr_precalc.npy", vdr_precalc)
-                del vdr_precalc
-            elif gevdm is not None:
-                np.save(save_path + "grad_evdm.npy", gevdm)
-                del gevdm
-
-    # concatenate data (test)
-    if not os.path.exists(test_dump):
-        os.mkdir(test_dump)
-    for i in range(len(systems_test)):
-        load_ref_path = f"{sys_test_paths[i]}/"
-        save_path = f"{test_dump}/{sys_test_names[i]}/"
-        if not os.path.exists(test_dump + '/' + sys_test_names[i]):
-            os.mkdir(test_dump + '/' + sys_test_names[i])
-        try:
-            atom_data = np.load(load_ref_path + "atom.npy")
-        except FileNotFoundError:
-            atom_data = coord_to_atom(sys_test_paths[i])
-        nframes = atom_data.shape[0]
-        natoms = atom_data.shape[1]
-        if atom_data.shape[2] != 4:
-            raise ValueError("atom.npy should have shape (nframes, natoms, 4)")
-        # Get lattice constant
-        if os.path.isfile(load_ref_path + "box.npy"):
-            box_data = np.load(load_ref_path + "box.npy")
-        else:
-            box_data = np.array([stat_args["lattice_vector"]]) # shape (3, 3)
-            # duplicate for each frame
-            box_data = box_data.reshape(1, 9).repeat(nframes, axis=0)
-        box_data = box_data.reshape(nframes, 3, 3) # shape (nframes, 3, 3)
-        # if coord_type is direct, multiply by lattice constant
-        if stat_args["coord_type"] == "Direct":
-            atom_data[:, :, 1:4] = np.matmul(atom_data[:, :, 1:4], box_data)  # Direct to Cartesian
-        # Convert unit to Bohr
-        atom_data[:, :, 1:4] *= stat_args['lattice_constant']  # to Bohr
-        box_data *= stat_args['lattice_constant']  # to Bohr
-
-        ## Initialize of properties list
-        conv = np.full((nframes,1), False) # convergence of each frame
-        dm_eig = None # descriptor
-
-        # properties for base model
-        e_base = None
-        f_base = None
-        s_base = None
-        o_base = None
-        h_base = None
-        hr_base = None
-
-        # properties for total model
-        e_tot = None
-        f_tot = None
-        s_tot = None
-        o_tot = None
-        h_tot = None
-        hr_tot = None
-
-        # properties for deepks calculation
-        gvx = None
-        gvepsl = None
-        orbital_precalc = None
-        v_delta_precalc = None
-        vdr_precalc = None
-        phialpha = None
-        gevdm = None
-        overlap = None
-
-        ## Main loop over frames in testing data
-        for f in range(nframes):
-            load_f_path = f"{sys_test_paths[i]}/ABACUS/{f}/OUT.ABACUS/"
-            # Check convergence of each frame
-            with open(f"{sys_test_paths[i]}/ABACUS/{f}/conv","r") as conv_file:
-                ic=conv_file.read().split()
-                ic = [item.strip('#').upper() for item in ic]
-                if ("CONVERGED" in ic or "ACHIEVED" in ic) and "NOT" not in ic:
-                    conv[(int)(ic[0])]=True
-
-            # Energy and eigenvalues of density matrix
-            des = np.load(load_f_path + "deepks_dm_eig.npy")
-            if dm_eig is None:
-                dm_eig = np.empty((nframes,) + des.shape, dtype=des.dtype)
-            assert des.shape == dm_eig.shape[1:], f"Shape of dm_eig {dm_eig.shape} does not match with {des.shape}!"
-            dm_eig[f] = des
-
-            ene = np.load(load_f_path + "deepks_ebase.npy")
-            if e_base is None:
-                e_base = np.empty((nframes,) + ene.shape, dtype=ene.dtype)
-            assert ene.shape == e_base.shape[1:], f"Shape of e_base {e_base.shape} does not match with {ene.shape}!"
-            e_base[f] = ene  #Ry to Hartree
-
-            ene = np.load(load_f_path + "deepks_etot.npy")
-            if e_tot is None:
-                e_tot = np.empty((nframes,) + ene.shape, dtype=ene.dtype)
-            assert ene.shape == e_tot.shape[1:], f"Shape of e_tot {e_tot.shape} does not match with {ene.shape}!"
-            e_tot[f] = ene  #Ry to Hartree
-
-            # Forces 
-            if(cal_force):
-                fcs = np.load(load_f_path + "deepks_fbase.npy")
-                if f_base is None:
-                    f_base = np.empty((nframes,) + fcs.shape, dtype=fcs.dtype)
-                assert fcs.shape == f_base.shape[1:], f"Shape of f_base {f_base.shape} does not match with {fcs.shape}!"
-                f_base[f] = fcs     #Ry to Hartree
-
-                fcs = np.load(load_f_path + "deepks_ftot.npy")
-                if f_tot is None:
-                    f_tot = np.empty((nframes,) + fcs.shape, dtype=fcs.dtype)
-                assert fcs.shape == f_tot.shape[1:], f"Shape of f_tot {f_tot.shape} does not match with {fcs.shape}!"
-                f_tot[f] = fcs     #Ry to Hartree
-
-                if os.path.exists(load_f_path + "deepks_gradvx.npy"):
-                    gvx_tmp = np.load(load_f_path + "deepks_gradvx.npy")
-                    if gvx is None:
-                        gvx = np.empty((nframes,) + gvx_tmp.shape, dtype=gvx_tmp.dtype)
-                    assert gvx_tmp.shape == gvx.shape[1:], f"Shape of gvx {gvx.shape} does not match with {gvx_tmp.shape}!"
-                    gvx[f] = gvx_tmp
-
-            # Stress
-            if(cal_stress):
-                scs=np.load(load_f_path + "deepks_sbase.npy")
-                if s_base is None:
-                    s_base = np.empty((nframes,) + scs.shape, dtype=scs.dtype)
-                assert scs.shape == s_base.shape[1:], f"Shape of s_base {s_base.shape} does not match with {scs.shape}!"
-                s_base[f] = scs     #Ry to Hartree
-                
-                scs=np.load(load_f_path + "deepks_stot.npy")
-                if s_tot is None:
-                    s_tot = np.empty((nframes,) + scs.shape, dtype=scs.dtype)
-                assert scs.shape == s_tot.shape[1:], f"Shape of s_tot {s_tot.shape} does not match with {scs.shape}!"
-                s_tot[f] = scs     #Ry to Hartree
-
-                if os.path.exists(load_f_path + "deepks_gvepsl.npy"):
-                    gvepsl_tmp = np.load(load_f_path + "deepks_gvepsl.npy")
-                    if gvepsl is None:
-                        gvepsl = np.empty((nframes,) + gvepsl_tmp.shape, dtype=gvepsl_tmp.dtype)
-                    assert gvepsl_tmp.shape == gvepsl.shape[1:], f"Shape of gvepsl {gvepsl.shape} does not match with {gvepsl_tmp.shape}!"
-                    gvepsl[f] = gvepsl_tmp
-
-            # Bandgap (orbital)
-            if(deepks_bandgap):
-                ocs = np.load(load_f_path + "deepks_obase.npy")
-                if o_base is None:
-                    o_base = np.empty((nframes,) + ocs.shape, dtype=ocs.dtype)
-                assert ocs.shape == o_base.shape[1:], f"Shape of o_base {o_base.shape} does not match with {ocs.shape}!"
-                o_base[f] = ocs 
-                    
-                ocs = np.load(load_f_path + "deepks_otot.npy")
-                if o_tot is None:
-                    o_tot = np.empty((nframes,) + ocs.shape, dtype=ocs.dtype)
-                assert ocs.shape == o_tot.shape[1:], f"Shape of o_tot {o_tot.shape} does not match with {ocs.shape}!"
-                o_tot[f] = ocs 
-                
-                if os.path.exists(load_f_path + "deepks_orbpre.npy"):
-                    orbital_precalc_tmp = np.load(load_f_path + "deepks_orbpre.npy")
-                    if orbital_precalc is None:
-                        orbital_precalc = np.empty((nframes,) + orbital_precalc_tmp.shape, dtype=orbital_precalc_tmp.dtype)
-                    assert orbital_precalc_tmp.shape == orbital_precalc.shape[1:], f"Shape of orbital_precalc {orbital_precalc.shape} does not match with {orbital_precalc_tmp.shape}!"
-                    orbital_precalc[f] = orbital_precalc_tmp
-
-            # V_delta (Hamiltonian) 
-            if(deepks_v_delta > 0):
-                hcs = np.load(load_f_path + "deepks_hbase.npy")
-                if h_base is None:
-                    h_base = np.empty((nframes,) + hcs.shape, dtype=hcs.dtype)
-                assert hcs.shape == h_base.shape[1:], f"Shape of h_base {h_base.shape} does not match with {hcs.shape}!"
-                h_base[f] = hcs 
-                
-                hcs = np.load(load_f_path + "deepks_htot.npy")
-                if h_tot is None:
-                    h_tot = np.empty((nframes,) + hcs.shape, dtype=hcs.dtype)
-                assert hcs.shape == h_tot.shape[1:], f"Shape of h_tot {h_tot.shape} does not match with {hcs.shape}!"
-                h_tot[f] = hcs 
-                
-                if deepks_v_delta == 1:
-                    if os.path.exists(load_f_path + "deepks_vdpre.npy"):
-                        v_delta_precalc_tmp = np.load(load_f_path + "deepks_vdpre.npy")
-                        if v_delta_precalc is None:
-                            v_delta_precalc = np.empty((nframes,) + v_delta_precalc_tmp.shape, dtype=v_delta_precalc_tmp.dtype)
-                        assert v_delta_precalc_tmp.shape == v_delta_precalc.shape[1:], f"Shape of v_delta_precalc {v_delta_precalc.shape} does not match with {v_delta_precalc_tmp.shape}!"
-                        v_delta_precalc[f] = v_delta_precalc_tmp
-                elif deepks_v_delta == 2:
-                    if os.path.exists(load_f_path + "deepks_phialpha.npy") and os.path.exists(load_f_path + "deepks_gevdm.npy"):
-                        phialpha_tmp = np.load(load_f_path + "deepks_phialpha.npy")
-                        # complex double to complex float
-                        # phialpha_tmp = phialpha_tmp.astype(np.complex64)
-                        if phialpha is None:
-                            phialpha = np.empty((nframes,) + phialpha_tmp.shape, dtype=phialpha_tmp.dtype)
-                        assert phialpha_tmp.shape == phialpha.shape[1:], f"Shape of phialpha {phialpha.shape} does not match with {phialpha_tmp.shape}!"
-                        phialpha[f] = phialpha_tmp
-                        
-                        gevdm_tmp = np.load(load_f_path + "deepks_gevdm.npy")
-                        if gevdm is None:
-                            gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
-                        assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
-                        gevdm[f] = gevdm_tmp
-
-            # V_delta_R (Hamiltonian)
-            if(deepks_v_delta < 0):
-                hrcs = read_csr(load_f_path + "deepks_hrtot.csr")
-                hrcs = hrcs.to_dense().numpy()
-                if hr_tot is None:
-                    hr_tot = np.empty((nframes,) + hrcs.shape, dtype=hrcs.dtype)
-                if (hrcs.shape[0] > hr_tot.shape[1]):
-                    # use np.pad to fill zeros in hr_tot
-                    n_add = hrcs.shape[0] - hr_tot.shape[1]
-                    hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                elif (hrcs.shape[0] < hr_tot.shape[1]):
-                    # use np.pad to fill zeros in hrcs
-                    n_add = hr_tot.shape[1] - hrcs.shape[0]
-                    hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                assert hrcs.shape == hr_tot.shape[1:], f"Shape of hr_tot {hr_tot.shape} does not match with {hrcs.shape}!"
-                hr_tot[f] = hrcs
-                if os.path.exists(load_f_path + "deepks_hrdelta.csr"):
-                    v_delta_r = read_csr(load_f_path + "deepks_hrdelta.csr")
-                    v_delta_r = v_delta_r.to_dense().numpy()
-                    if (v_delta_r.shape != hrcs.shape):
-                        # padding the smaller one to match the shape
-                        if v_delta_r.shape[0] < hrcs.shape[0]:
-                            n_add = hrcs.shape[0] - v_delta_r.shape[0]
-                            v_delta_r = np.pad(v_delta_r, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                        elif v_delta_r.shape[0] > hrcs.shape[0]:
-                            n_add = v_delta_r.shape[0] - hrcs.shape[0]
-                            hrcs = np.pad(hrcs, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    hrtmp = hrcs - v_delta_r
-                    if hr_base is None:
-                        hr_base = np.empty((nframes,) + hrtmp.shape, dtype=hrtmp.dtype)
-                    if (hrtmp.shape[0] > hr_base.shape[1]):
-                        # use np.pad to fill zeros in hr_base
-                        n_add = hrtmp.shape[0] - hr_base.shape[1]
-                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    elif (hrtmp.shape[0] < hr_base.shape[1]):
-                        # use np.pad to fill zeros in hrtmp
-                        n_add = hr_base.shape[1] - hrtmp.shape[0]
-                        hrtmp = np.pad(hrtmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    assert hrtmp.shape[3:] == hr_base.shape[4:], f"Shape of hr_base {hr_base.shape} does not match with {hrtmp.shape}!"
-                    hr_base[f] = hrtmp
-                if deepks_v_delta == -1:
-                    if os.path.exists(load_f_path + "deepks_vdrpre.npy"):
-                        vdr_precalc_tmp = np.load(load_f_path + "deepks_vdrpre.npy")
-                        if vdr_precalc is None:
-                            vdr_precalc = np.empty((nframes,) + vdr_precalc_tmp.shape, dtype=vdr_precalc_tmp.dtype)
-                        if (vdr_precalc_tmp.shape[0] > vdr_precalc.shape[1]):
-                            # use np.pad to fill zeros in vdr_precalc
-                            n_add = vdr_precalc_tmp.shape[0] - vdr_precalc.shape[1]
-                            vdr_precalc = np.pad(vdr_precalc, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                        elif (vdr_precalc_tmp.shape[0] < vdr_precalc.shape[1]):
-                            # use np.pad to fill zeros in vdr_precalc_tmp
-                            n_add = vdr_precalc.shape[1] - vdr_precalc_tmp.shape[0]
-                            vdr_precalc_tmp = np.pad(vdr_precalc_tmp, ((0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                        assert vdr_precalc_tmp.shape == vdr_precalc.shape[1:], f"Shape of vdr_precalc {vdr_precalc.shape} does not match with {vdr_precalc_tmp.shape}!"
-                        vdr_precalc[f] = vdr_precalc_tmp
-                elif deepks_v_delta == -2:
-                    if os.path.exists(load_f_path + "deepks_gevdm.npy"):
-                        gevdm_tmp = np.load(load_f_path + "deepks_gevdm.npy")
-                        if gevdm is None:
-                            gevdm = np.empty((nframes,) + gevdm_tmp.shape, dtype=gevdm_tmp.dtype)
-                        assert gevdm_tmp.shape == gevdm.shape[1:], f"Shape of gevdm {gevdm.shape} does not match with {gevdm_tmp.shape}!"
-                        gevdm[f] = gevdm_tmp
-
-        ## Save data
-        # Convergence
-        np.save(save_path + "conv.npy", conv)
-        del conv
-
-        # Energy and eigenvalues of density matrix
-        np.save(save_path + "dm_eig.npy", dm_eig)
-        del dm_eig
-
-        np.save(save_path + "e_base.npy", e_base)    #Ry to Hartree
-        e_ref = np.load(load_ref_path + "energy.npy")
-        if e_ref.shape != (nframes, 1):
-            if e_ref.shape == (nframes,):
-                e_ref = e_ref.reshape((nframes, 1))
-                print(f"energy.npy shape {e_ref.shape} is reshaped to {(nframes, 1)}")
-            else:
-                raise ValueError(f"energy.npy shape should be (nframes, 1), but got {e_ref.shape}.")
-        np.save(save_path + "energy.npy", e_ref)
-        np.save(save_path + "l_e_delta.npy", e_ref-e_base)
-        np.save(save_path + "e_tot.npy", e_tot)
-        del e_base, e_tot, e_ref
-        
-        np.save(save_path + "atom.npy", atom_data)
-        del atom_data
-        np.save(save_path + "box.npy", box_data)
-        del box_data
-
-        # Forces
-        if(cal_force): 
-            np.save(save_path + "f_base.npy", f_base)
-            f_ref = np.load(load_ref_path + "force.npy")
-            if f_ref.shape != (nframes, natoms, 3):
-                raise ValueError(f"force.npy shape should be (nframes, natoms, 3), but got {f_ref.shape}.")
-            np.save(save_path + "force.npy", f_ref)
-            np.save(save_path + "l_f_delta.npy", f_ref-f_base)
-            np.save(save_path + "f_tot.npy", f_tot)
-            del f_base, f_tot, f_ref
-            if gvx is not None:
-                np.save(save_path + "grad_vx.npy", gvx)
-                del gvx
-
-        # Stress
-        if(cal_stress): 
-            np.save(save_path + "s_base.npy", s_base)
-            s_ref = np.load(load_ref_path + "stress.npy")
-            if s_ref.shape != (nframes, 9):
-                raise ValueError(f"stress.npy shape should be (nframes, 9), but got {s_ref.shape}.")
-            s_ref = s_ref[:,[0,1,2,4,5,8]] #only train the upper-triangle part
-            np.save(save_path + "stress.npy", s_ref)
-            np.save(save_path + "l_s_delta.npy", s_ref-s_base)
-            np.save(save_path + "s_tot.npy", s_tot)
-            del s_base, s_tot, s_ref
-            if gvepsl is not None:
-                np.save(save_path + "grad_epsilon.npy", gvepsl)
-                del gvepsl
-
-        # Bandgap (orbital)
-        if(deepks_bandgap): 
-            np.save(save_path + "o_base.npy", o_base)
-            o_ref = np.load(load_ref_path + "orbital.npy")
-            if o_ref.shape[0] != nframes or o_ref.shape[2] != 1:
-                raise ValueError(f"orbital.npy shape should be (nframes, nkpt, 1), but got {o_ref.shape}.")
-            np.save(save_path + "orbital.npy", o_ref)
-            np.save(save_path + "l_o_delta.npy", o_ref-o_base)
-            np.save(save_path + "o_tot.npy", o_tot)
-            del o_base, o_tot, o_ref
-            if orbital_precalc is not None:
-                np.save(save_path + "orbital_precalc.npy", orbital_precalc)
-                del orbital_precalc
-
-        # V_delta (Hamiltonian)
-        if(deepks_v_delta > 0): 
-            np.save(save_path + "h_base.npy", h_base)
-            h_ref = np.load(load_ref_path + "hamiltonian.npy")
-            if h_ref.shape[0] != nframes or h_ref.ndim != 4:
-                raise ValueError(f"hamiltonian.npy shape should be (nframes, nkpt, nlocal, nlocal), but got {h_ref.shape}.")
-            np.save(save_path + "hamiltonian.npy", h_ref)
-            np.save(save_path + "l_h_delta.npy", h_ref-h_base)
-            np.save(save_path + "h_tot.npy", h_tot)
-            del h_base, h_tot, h_ref
-            if v_delta_precalc is not None:
-                np.save(save_path + "v_delta_precalc.npy", v_delta_precalc)
-                del v_delta_precalc
-            elif phialpha is not None and gevdm is not None:
-                np.save(save_path + "grad_evdm.npy", gevdm)
-                del gevdm
-                np.save(save_path + "phialpha.npy", phialpha)
-                del phialpha
-            if os.path.exists(load_ref_path + "overlap.npy"):
-                overlap = np.load(load_ref_path + "overlap.npy")
-                np.save(save_path + "overlap.npy", overlap)
-                del overlap
-
-        # V_delta_R (Hamiltonian)
-        if(deepks_v_delta < 0):
-            hr_ref = np.load(load_ref_path + "hamiltonian_r.npy")
-            if hr_ref.shape[0] != nframes or hr_ref.ndim != 6:
-                raise ValueError(f"hamiltonian_r.npy shape should be (nframes, nR, nR, nR, nlocal, nlocal), but got {hr_ref.shape}.")
-            # make sure hr_base, hr_tot have the same shape as hr_ref
-            if hr_base is not None:
-                if hr_base.shape[1:] != hr_ref.shape[1:]:
-                    if hr_base.shape[1] < hr_ref.shape[1]:
-                        n_add = hr_ref.shape[1] - hr_base.shape[1]
-                        hr_base = np.pad(hr_base, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    elif hr_base.shape[1] > hr_ref.shape[1]:
-                        n_add = hr_base.shape[1] - hr_ref.shape[1]
-                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-            if hr_tot is not None:
-                if hr_tot.shape[1:] != hr_ref.shape[1:]:
-                    if hr_tot.shape[1] < hr_ref.shape[1]:
-                        n_add = hr_ref.shape[1] - hr_tot.shape[1]
-                        hr_tot = np.pad(hr_tot, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-                    elif hr_tot.shape[1] > hr_ref.shape[1]:
-                        n_add = hr_tot.shape[1] - hr_ref.shape[1]
-                        hr_ref = np.pad(hr_ref, ((0, 0), (0, n_add), (0, n_add), (0, n_add), (0, 0), (0, 0)), mode='constant', constant_values=0)
-            np.save(save_path + "hamiltonian_r.npy", hr_ref)
-            np.save(save_path + "hr_base.npy", hr_base)
-            np.save(save_path + "hr_tot.npy", hr_tot)
-            np.save(save_path + "l_hr_delta.npy", hr_ref-hr_base)
-            del hr_base, hr_tot, hr_ref
-            if vdr_precalc is not None:
-                np.save(save_path + "vdr_precalc.npy", vdr_precalc)
-                del vdr_precalc
-            elif gevdm is not None:
-                np.save(save_path + "grad_evdm.npy", gevdm)
-                del gevdm
+    _process_systems(sys_train_paths, sys_train_names, train_dump)
+    _process_systems(sys_test_paths,  sys_test_names,  test_dump)
 
     # check convergence and print in log
-    from deepks.physics.backends.pyscf.stats import print_stats
+    from deepks.physics.backends.stats import print_stats
     print_stats(systems=systems_train, test_sys=systems_test,
-            dump_dir=train_dump, test_dump=test_dump, group=False, 
-            with_conv=True, with_e=True, e_name="e_tot", 
+            dump_dir=train_dump, test_dump=test_dump, group=False,
+            with_conv=True, with_e=True, e_name="e_tot",
                with_f=True, f_name="f_tot")
     return
 
 
-def make_stat_scf_abacus(systems_train, systems_test=None, *, 
+def make_stat_scf_abacus(systems_train, systems_test=None, *,
                   train_dump="data_train", test_dump="data_test", cal_force=0, cal_stress=0, deepks_bandgap=0, deepks_v_delta=0,
+                  deepks_scf=0,
                   workdir='.', outlog="log.data", **stat_args):
     # follow same convention for systems as run_scf
     systems_train = [os.path.abspath(s) for s in load_sys_paths(systems_train)]
@@ -1146,7 +738,8 @@ def make_stat_scf_abacus(systems_train, systems_test=None, *,
         cal_force=cal_force,
         cal_stress=cal_stress,
         deepks_bandgap=deepks_bandgap,
-        deepks_v_delta=deepks_v_delta)
+        deepks_v_delta=deepks_v_delta,
+        deepks_scf=deepks_scf)
     # make task
     return PythonTask(
         gather_stats_abacus,

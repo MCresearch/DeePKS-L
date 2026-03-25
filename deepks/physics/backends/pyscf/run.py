@@ -249,6 +249,6 @@ def main(systems, model_file="model.pth", basis='ccpvdz',
             print('group finished')
 
 
-if __name__ == "__main__":
-    from deepks.__main__ import scf_cli as cli
-    cli()
+# This module is not intended to be run directly.
+# SCF calculations are invoked via BatchTask from the iterate workflow (template.py),
+# which calls make_scf_task() using the pyscf backend runner.

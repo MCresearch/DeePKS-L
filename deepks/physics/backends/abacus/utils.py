@@ -44,16 +44,39 @@ def read_csr(file, dtype=torch.float64):
     all_values = []
     max_iR = 0
     dim = 0
+
+    def _read_tokens(f, n, convert):
+        """Read exactly n tokens from f, skipping comment/blank lines."""
+        tokens = []
+        while len(tokens) < n:
+            line = f.readline()
+            if not line:
+                break
+            s = line.strip()
+            if not s or s.startswith('#'):
+                continue
+            tokens.extend(s.split())
+        return [convert(t) for t in tokens[:n]]
+
     with open(file, 'r') as f:
         dim = int(f.readline().split()[-1])
         num = int(f.readline().split()[-1])
         for _ in range(num):
             nnz = 0
             while nnz == 0:
-                r = f.readline().split()
-                if len(r) == 0:
+                line = f.readline()
+                if not line:
                     break
-                Rx, Ry, Rz, nnz = int(r[0]), int(r[1]), int(r[2]), int(r[3])
+                s = line.strip()
+                if not s or s.startswith('#'):
+                    continue
+                r = s.split()
+                if len(r) < 4:
+                    continue
+                try:
+                    Rx, Ry, Rz, nnz = int(r[0]), int(r[1]), int(r[2]), int(r[3])
+                except ValueError:
+                    continue
                 iRx = R2iR(Rx)
                 iRy = R2iR(Ry)
                 iRz = R2iR(Rz)
@@ -61,9 +84,9 @@ def read_csr(file, dtype=torch.float64):
                     max_iR = max(iRx, iRy, iRz)
             if nnz == 0:
                 break
-            data = [float(x) for x in f.readline().split()]
-            indices = [int(x) for x in f.readline().split()]
-            indptr = [int(x) for x in f.readline().split()]
+            data    = _read_tokens(f, nnz,    float)
+            indices = _read_tokens(f, nnz,    int)
+            indptr  = _read_tokens(f, dim + 1, int)
             matrix = csr_matrix((data, indices, indptr), shape=(dim, dim))
             matrix_coo = matrix.tocoo()
             rows = matrix_coo.row

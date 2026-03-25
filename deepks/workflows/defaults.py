@@ -1,11 +1,19 @@
 """Workflow-level command, runtime, resource, and file-name defaults."""
 
-import torch
+def _get_device():
+    try:
+        import torch
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    except ImportError:
+        return None
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = _get_device()
 
-SCF_CMD = "{python} -u -m deepks.physics.backends.pyscf.run"
-TRN_CMD = "{python} -u -m deepks.ml.train.train"
+# Unified CLI entry point for per-task SCF jobs dispatched via BatchTask.
+# Each task generates a YAML with type: scf_task and runs: deepks <yaml>
+SCF_CMD = "deepks"
+# TRN_CMD is no longer used; training is invoked via PythonTask calling train.main() directly
+# TRN_CMD = "{python} -u -m deepks.ml.train.train"
 
 DEFAULT_SCF_RES = {
     "time_limit": "24:00:00",

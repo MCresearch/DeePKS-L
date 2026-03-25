@@ -227,7 +227,15 @@ class Dispatcher(object):
                                                  instance_id)
                 job_record.dump()
             else :
-                # finished job, append a None to list
+                # finished job: try to clean up leftover .sub and tag files
+                job_uuid = job_record.get_uuid(cur_hash) if job_record.check_submitted(cur_hash) else None
+                if job_uuid is not None:
+                    try:
+                        context = self.context_fn(work_path, self.session, job_uuid)
+                        context.clean()
+                    except Exception:
+                        pass
+                # append a None to list
                 job_list.append(None)
         assert(len(job_list) == nchunks)
         job_handler = {

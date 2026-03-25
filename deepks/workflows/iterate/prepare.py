@@ -116,12 +116,23 @@ def check_arg_dict(data: Any, default: Dict, strict: bool = True) -> Dict:
     return result
 
 
-def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
+def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     """Prepare iteration workflow (Stage 1).
 
     This function sets up the working directory, prepares shared files,
     and creates the iteration workflow. If init_scf or init_train is specified,
     it creates an initial iteration (iter.init) with energy-only training.
+
+    Behaviour of init_model and iter.00/00.scf:
+    - init_model=False (default): no prior model exists before iter.00.
+      iter.00/00.scf runs without a model (no_model=True, pure DFT) and
+      iter.00/01.train trains from scratch (restart=False).
+    - init_model=<path>: the given model is copied into share/ and
+      iter.00/00.scf links it (no_model=False); iter.00/01.train restarts
+      from it (restart=True).
+    - init_scf / init_train set: an iter.init is prepended; its 01.train
+      produces a bootstrap model that iter.00/00.scf can link; subsequent
+      iterations all use restart=True.
 
     Args:
         config: Configuration dictionary
@@ -138,6 +149,15 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
     cleanup = config.get('cleanup', False)
     strict = config.get('strict', True)
     scf_soft = config.get('scf_soft', 'pyscf')
+
+    # init_scf / init_train: trigger an iter.init bootstrap iteration
+    init_scf = config.get('init_scf', None)
+    init_train = config.get('init_train', None)
+
+    # init_model: False  -> train from scratch, no model before iter.00
+    #             True   -> share/model.pth already exists, use it
+    #             <path> -> copy that file to share/ and use it
+    init_model = config.get('init_model', False)
 
     # Create directories
     os.makedirs(workdir, exist_ok=True)
@@ -170,7 +190,32 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         save_basis(os.path.join(share_path, PROJ_BASIS), load_basis(proj_basis))
         proj_basis = PROJ_BASIS
 
-    # Create main iteration SCF and train steps
+    # Copy explicit init_model path into share/ so iter.00 can link it.
+    if isinstance(init_model, str):
+        dst_model = os.path.join(share_path, MODEL_FILE)
+        copy_file(init_model, dst_model)
+        init_model = True
+
+    # Whether the very first main iteration (iter.00) will have a model
+    # available from a previous folder.
+    # True when: an iter.init bootstrap is requested, OR an init_model was given.
+    first_iter_has_model = bool(init_scf or init_train or init_model)
+
+    # ------------------------------------------------------------------
+    # Build the per-iteration SCF and train step templates.
+    #
+    # For main iterations (iter.00 .. iter.N-1):
+    #   - If first_iter_has_model is False, iter.00/00.scf must run without
+    #     a model (no_model=True) and iter.00/01.train must start from
+    #     scratch (restart=False).  All subsequent iterations chain normally.
+    #   - If first_iter_has_model is True, every iteration links the model
+    #     from its previous folder (no_model=False) and restarts training.
+    #
+    # The Iteration class handles chaining iter.N-1/01.train -> iter.N/00.scf
+    # for N >= 1.  For iter.00 the init_folder argument provides the source.
+    # ------------------------------------------------------------------
+
+    # Main-loop SCF step: needs a model from prev folder (normal case)
     scf_step = create_scf_step(
         systems_train=systems_train,
         systems_test=systems_test,
@@ -179,45 +224,41 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         scf_machine=scf_machine,
         proj_basis=proj_basis,
         share_folder=share_folder,
-        cleanup=cleanup
+        cleanup=cleanup,
+        no_model=not first_iter_has_model  # no model for iter.00 when starting from scratch
     )
 
+    # Main-loop train step
     train_step = create_train_step(
         train_args_name=train_args_name,
         train_machine=train_machine,
         proj_basis=proj_basis,
         share_folder=share_folder,
-        cleanup=cleanup
+        cleanup=cleanup,
+        restart=first_iter_has_model  # restart only when a prior model exists
     )
 
-    # Create main iteration workflow
+    # Build the main Iteration workflow
     iteration_workflow = Iteration(
         [scf_step, train_step],
         iternum=n_iter,
         workdir=workdir,
-        record_file=RECORD
+        record_file=os.path.join(workdir, RECORD)
     )
 
-    # Handle initialization iteration (iter.init)
-    # This is the first iteration with energy-only training to prevent large model differences
-    init_scf = config.get('init_scf')
-    init_train = config.get('init_train')
-    init_model = config.get('init_model', False)
-
     if init_scf or init_train:
-        # Prepare init SCF step
+        # Prepare init SCF step (always no_model=True: pure DFT bootstrap)
         if scf_soft.lower() == 'abacus':
             init_scf_abacus = config.get('init_scf_abacus')
             init_scf_args_name = check_share_folder(init_scf_abacus, INIT_SCF_NAME_ABACUS, share_path)
             init_scf_abacus = check_arg_dict(init_scf_abacus, DEFAULT_SCF_ARGS_ABACUS, strict)
 
-            # For ABACUS init: use scf_machine (not init_scf_machine) as per original logic
             scf_init = create_scf_step(
                 systems_train=systems_train,
                 systems_test=systems_test,
                 scf_soft=scf_soft,
                 scf_args=init_scf_abacus,
-                scf_machine=scf_machine,  # Use scf_machine, not init_scf_machine
+                scf_machine=scf_machine,
                 proj_basis=proj_basis,
                 share_folder=share_folder,
                 cleanup=cleanup,
@@ -237,15 +278,15 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
                 no_model=True  # No model for init SCF
             )
 
-        # Prepare init train step (energy-only training)
+        # Prepare init train step (energy-only, no restart)
         init_train_args_name = check_share_folder(init_train, INIT_TRN_NAME, share_path)
-        # Use train_machine (not init_train_machine) as per original logic
         train_init = create_train_step(
             train_args_name=init_train_args_name,
-            train_machine=train_machine,  # Use train_machine, not init_train_machine
+            train_machine=train_machine,
             proj_basis=proj_basis,
             share_folder=share_folder,
-            cleanup=cleanup
+            cleanup=cleanup,
+            restart=False  # bootstrap: no prior model
         )
 
         # Create init iteration sequence
@@ -254,8 +295,14 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Iteration, str, str]:
         # Prepend init iteration to main workflow
         iteration_workflow.prepend(init_iter)
 
-        # Set init_folder for main iteration
-        iteration_workflow.init_folder = "iter.init"
+        # The first main iteration links its prev folder from iter.init/01.train
+        iteration_workflow.set_init_folder(
+            os.path.join(workdir, "iter.init", TRN_STEP_DIR)
+        )
+
+    elif init_model:
+        # An explicit model was copied to share/; point iter.00/00.scf at it.
+        iteration_workflow.set_init_folder(share_path)
 
     record_file = os.path.join(workdir, RECORD)
 

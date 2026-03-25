@@ -1,11 +1,12 @@
+import os
 import contextlib
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from deepks.workflows.iterate import run_iterate_workflow
-from deepks.orchestration.workflow.task import PythonTask
 from deepks.io.utils import load_yaml
 
 
@@ -15,6 +16,22 @@ LOG_PATH = CURRENT_DIR / "log.iter"
 ERR_PATH = CURRENT_DIR / "err"
 
 GENERATED_NAMES = ("share", "iter.init", "iter.00", "RECORD", "log.iter", "err")
+
+
+def _abacus_available() -> bool:
+    try:
+        result = subprocess.run(
+            ["abacus", "-v"],
+            capture_output=True,
+            timeout=10,
+        )
+        output = (result.stdout + result.stderr).decode(errors="replace")
+        return result.returncode == 0 and "ABACUS" in output.upper()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+ABACUS_AVAILABLE = _abacus_available()
 
 
 def _remove_generated() -> None:
@@ -27,6 +44,7 @@ def _remove_generated() -> None:
 
 
 def _fake_make_scf_abacus(*args, **kwargs):
+    from deepks.orchestration.scheduler.task import PythonTask
     workdir = kwargs.get("workdir", "00.scf")
 
     def _run_mock_scf():
@@ -37,6 +55,7 @@ def _fake_make_scf_abacus(*args, **kwargs):
 
 
 def _fake_make_train(*args, **kwargs):
+    from deepks.orchestration.scheduler.task import PythonTask
     workdir = kwargs.get("workdir", "01.train")
 
     def _run_mock_train():
@@ -48,10 +67,10 @@ def _fake_make_train(*args, **kwargs):
 @pytest.fixture(autouse=True)
 def _prepare_runtime_tree(monkeypatch):
     _remove_generated()
-    # Monkeypatch the template functions used by new workflow
-    from deepks.workflows.iterate import template_abacus, template
-    monkeypatch.setattr(template_abacus, "make_scf_abacus", _fake_make_scf_abacus)
-    monkeypatch.setattr(template, "make_train", _fake_make_train)
+    if not ABACUS_AVAILABLE:
+        from deepks.workflows.iterate import scf_step, train_step
+        monkeypatch.setattr(scf_step, "make_scf_abacus", _fake_make_scf_abacus)
+        monkeypatch.setattr(train_step, "make_train", _fake_make_train)
     yield
     _remove_generated()
 
@@ -64,7 +83,9 @@ def run_iter():
 
 
 def test_result():
-    pytest.skip("Iterate initialization logic not yet fully implemented in new workflow")
+    mode = "real abacus" if ABACUS_AVAILABLE else "mock (abacus unavailable)"
+    print(f"Running iterate test in {mode} mode")
+
     for name in GENERATED_NAMES:
         assert not (CURRENT_DIR / name).exists()
 

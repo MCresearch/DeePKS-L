@@ -52,10 +52,10 @@ def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # Check if we should restart
     if os.path.exists(record_file):
-        print(f'# restarting from {record_file}')
+        # print(f'# restarting from {record_file}')
         iteration_workflow.restart()
     else:
-        print(f'# starting new iteration in {workdir}')
+        # print(f'# starting new iteration in {workdir}')
         iteration_workflow.run()
 
     # Collect results

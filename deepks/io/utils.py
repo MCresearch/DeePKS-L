@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import warnings
 from collections.abc import Mapping
 from glob import glob
 from itertools import chain
@@ -94,6 +95,15 @@ def save_yaml(data, file_path):
     with open(file_path, 'w') as fp:
         yaml = YAML(typ='safe', pure=True)
         yaml.dump(data, fp)
+
+
+def dump_yaml_str(data):
+    """Serialize *data* to a YAML string (ruamel.yaml safe mode)."""
+    import io
+    buf = io.StringIO()
+    yaml = YAML(typ='safe', pure=True)
+    yaml.dump(data, buf)
+    return buf.getvalue()
 
 
 def load_array(file):
@@ -192,3 +202,51 @@ def create_dir(dirname, backup=False):
         os.makedirs(dirname)
     else:
         assert dirname.is_dir(), f'{dirname} is not a dir'
+
+
+# ---------------------------------------------------------------------------
+# Array shape coercion helpers
+# ---------------------------------------------------------------------------
+
+def coerce_box(arr, nframes, fname="box.npy"):
+    """Ensure box array has shape (nframes, 9); accept (nframes, 3, 3)."""
+    if arr.shape == (nframes, 3, 3):
+        warnings.warn(f"{fname}: got shape {arr.shape}, reshaping to ({nframes}, 9).")
+        return arr.reshape(nframes, 9)
+    if arr.shape != (nframes, 9):
+        raise ValueError(f"{fname}: expected shape ({nframes}, 9), got {arr.shape}.")
+    return arr
+
+
+def coerce_energy(arr, nframes, fname="energy.npy"):
+    """Ensure energy array has shape (nframes, 1); accept (nframes,)."""
+    if arr.shape == (nframes,):
+        warnings.warn(f"{fname}: got shape {arr.shape}, reshaping to ({nframes}, 1).")
+        return arr.reshape(nframes, 1)
+    if arr.shape != (nframes, 1):
+        raise ValueError(f"{fname}: expected shape ({nframes}, 1), got {arr.shape}.")
+    return arr
+
+
+def coerce_stress(arr, nframes, fname="stress.npy"):
+    """Ensure stress array has shape (nframes, 6) upper-triangle (xx,xy,xz,yy,yz,zz).
+
+    Accepted input shapes:
+      (nframes, 6)   -- already upper-triangle, returned as-is.
+      (nframes, 3,3) -- full matrix, reshaped then upper-triangle sliced.
+      (nframes, 9)   -- full flat, upper-triangle sliced.
+    """
+    if arr.shape == (nframes, 6):
+        return arr
+    if arr.shape == (nframes, 3, 3):
+        warnings.warn(
+            f"{fname}: got shape {arr.shape}, reshaping to ({nframes}, 9) "
+            f"then taking upper-triangle to ({nframes}, 6)."
+        )
+        arr = arr.reshape(nframes, 9)
+    if arr.shape == (nframes, 9):
+        warnings.warn(f"{fname}: got shape {arr.shape}, taking upper-triangle to ({nframes}, 6).")
+        return arr[:, [0, 1, 2, 4, 5, 8]]
+    raise ValueError(
+        f"{fname}: expected ({nframes},6), ({nframes},9), or ({nframes},3,3), got {arr.shape}."
+    )
