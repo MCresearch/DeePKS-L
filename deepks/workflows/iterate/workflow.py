@@ -7,10 +7,8 @@ It combines SCF calculations and model training in an iterative loop.
 import os
 from typing import Dict, Any
 
-from deepks.orchestration.workflow.workflow import Iteration
+from deepks.io.input import build_runtime_config_from_raw
 from .prepare import prepare_iterate
-from .scf_step import create_scf_step
-from .train_step import create_train_step
 
 
 def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -47,8 +45,11 @@ def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         dict: Iteration results with final model and statistics
     """
+    runtime_config = build_runtime_config_from_raw(config)
+    iterate_config = runtime_config['raw_config']
+
     # Prepare iteration workflow
-    iteration_workflow, workdir, record_file = prepare_iterate(config)
+    iteration_workflow, workdir, record_file = prepare_iterate(iterate_config)
 
     # Check if we should restart
     if os.path.exists(record_file):
@@ -59,7 +60,7 @@ def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
         iteration_workflow.run()
 
     # Collect results
-    n_iter = config.get('n_iter', 0)
+    n_iter = iterate_config.get('n_iter', 0)
     final_model = os.path.join(workdir, f'iter.{n_iter:02d}', '01.train', 'model.pth')
 
     results = {

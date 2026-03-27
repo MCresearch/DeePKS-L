@@ -3,7 +3,6 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
-from deepks.workflows.defaults import DEVICE
 from deepks.physics.defaults import TYPE_NAME
 from deepks.physics.backends.abacus.utils import R2iR
 try:
@@ -126,7 +125,7 @@ def loss_hr(input, target):
     # return sqdf_weighted.sum() / R_range / nlocal / sqdf.shape[0]
 
 ## The following four functions are used only in Evaluator class
-def cal_v_delta(gev,gevdm,phialpha,device=DEVICE):
+def cal_v_delta(gev,gevdm,phialpha,device="cpu"):
     # before_memory_usage = process.memory_info().rss
 
     mmax=phialpha.size(-1)
@@ -210,7 +209,7 @@ def cal_nb_overlap(types, atoms, box, orb, alpha, integrator, nlocal):
     data_shape = [nzeta_alpha, lmax_alpha]
     return overlap, iR_mat, data_shape
 
-def cal_vdr(gedm, overlap, iR_mat, vdr_label, device=DEVICE):
+def cal_vdr(gedm, overlap, iR_mat, vdr_label, device="cpu"):
     nframes, iRmax, nlocal = vdr_label.shape[0], vdr_label.shape[1], vdr_label.shape[-1]
     vdr_pred = torch.zeros_like(vdr_label, device=device)
     # natoms = 2

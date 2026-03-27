@@ -7,14 +7,14 @@ try:
 except ImportError as e:
     import sys
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
-from deepks.workflows.defaults import DEVICE
 from deepks.ml.models.corrnet import CorrNet
 from deepks.io.readers import GroupReader
 from deepks.io.utils import load_yaml, load_dirs, check_list
 
 
-def test(model, g_reader, dump_prefix="test", group=False):
+def test(model, g_reader, dump_prefix="test", group=False, device="cpu"):
     model.eval()
+    model = model.to(device)
     loss_fn=nn.MSELoss()
     label_list = []
     pred_list = []
@@ -24,14 +24,14 @@ def test(model, g_reader, dump_prefix="test", group=False):
         nframes = sample["lb_e"].shape[0]
         for k, v in sample.items():
             if isinstance(v, list):
-                sample[k] = [vv.to(DEVICE, non_blocking=True) for vv in v]
+                sample[k] = [vv.to(device, non_blocking=True) for vv in v]
             elif not torch.is_complex(v):
-                sample[k] = v.to(DEVICE, non_blocking=True)
+                sample[k] = v.to(device, non_blocking=True)
             else:
                 if k == "phialpha":
                     sample[k] = v.to("cpu", dtype=torch.complex128, non_blocking=True)
                 else:
-                    sample[k] = v.to(DEVICE, dtype=torch.complex128, non_blocking=True)
+                    sample[k] = v.to(device, dtype=torch.complex128, non_blocking=True)
         label, data = sample["lb_e"], sample["eig"]
         pred = model(data)
         error = torch.sqrt(loss_fn(pred, label))
@@ -65,7 +65,8 @@ def test(model, g_reader, dump_prefix="test", group=False):
 
 def main(data_paths, model_file="model.pth", 
          output_prefix='test', group=False,
-         e_name='l_e_delta', d_name=['dm_eig']):
+        e_name='l_e_delta', d_name=['dm_eig'],
+         device="cpu"):
     data_paths = load_dirs(data_paths)
     if len(d_name) == 1:
         d_name = d_name[0]
@@ -75,7 +76,7 @@ def main(data_paths, model_file="model.pth",
     for f in model_file:
         print(f)
         p = os.path.dirname(f)
-        model = CorrNet.load(f).double().to(DEVICE)
+        model = CorrNet.load(f).double().to(device)
         dump = os.path.join(p, output_prefix)
         dir_name = os.path.dirname(dump)
         if dir_name:
@@ -84,7 +85,7 @@ def main(data_paths, model_file="model.pth",
             elist, econst = model.elem_table
             g_reader.collect_elems(elist)
             g_reader.subtract_elem_const(econst)
-        test(model, g_reader, dump_prefix=dump, group=group)
+        test(model, g_reader, dump_prefix=dump, group=group, device=device)
         g_reader.revert_elem_const()
 
 

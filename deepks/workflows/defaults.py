@@ -1,14 +1,5 @@
 """Workflow-level command, runtime, resource, and file-name defaults."""
 
-def _get_device():
-    try:
-        import torch
-        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    except ImportError:
-        return None
-
-DEVICE = _get_device()
-
 # Unified CLI entry point for per-task SCF jobs dispatched via BatchTask.
 # Each task generates a YAML with type: scf_task and runs: deepks <yaml>
 SCF_CMD = "deepks"

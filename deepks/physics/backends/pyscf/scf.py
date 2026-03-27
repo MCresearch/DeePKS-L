@@ -7,8 +7,6 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf import gto
 from pyscf import scf, dft
-# from deepks.workflows.defaults import DEVICE
-DEVICE = 'cpu' # temporarily not use deepks.workflows.defaults.DEVICE
 from deepks.physics.backends.pyscf.basis import load_basis, get_shell_sec
 from deepks.ml.models.corrnet import CorrNet
 from deepks.physics.backends.pyscf.penalty import PenaltyMixin
@@ -63,7 +61,7 @@ def t_get_corr(model, dm, ovlp_shells, with_vc=True):
     """return the "correction" energy (and potential) given by a NN model"""
     dm.requires_grad_(True)
     ceig = t_make_eig(dm, ovlp_shells) # natoms x nproj
-    _dref = next(model.parameters()) if isinstance(model, nn.Module) else DEVICE
+    _dref = next(model.parameters()) if isinstance(model, nn.Module) else "cpu"
     ec = model(ceig.to(_dref))  # no batch dim here, unsqueeze(0) if needed
     if not with_vc:
         return ec.to(ceig)
@@ -181,7 +179,7 @@ class CorrMixin(abc.ABC):
 class NetMixin(CorrMixin):
     """Mixin class to add correction term given by a neural network model"""
 
-    def __init__(self, model, proj_basis=None, device=DEVICE):
+    def __init__(self, model, proj_basis=None, device="cpu"):
         # make sure you call this method after the base SCF class init
         # otherwise it would throw an error due to the lack of mol attr
         self.device = device
@@ -292,7 +290,7 @@ class NetMixin(CorrMixin):
 class DSCF(NetMixin, PenaltyMixin, dft.rks.RKS):
     """Restricted SCF solver for given NN energy model"""
     
-    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device=DEVICE):
+    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device="cpu"):
         # base method must be initialized first
         dft.rks.RKS.__init__(self, mol, xc=xc)
         # correction mixin initialization
@@ -308,7 +306,7 @@ DeepSCF = RDSCF = DSCF
 class UDSCF(NetMixin, PenaltyMixin, dft.uks.UKS):
     """Unrestricted SCF solver for given NN energy model"""
     
-    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device=DEVICE):
+    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device="cpu"):
         # base method must be initialized first
         dft.uks.UKS.__init__(self, mol, xc=xc)
         # correction mixin initialization

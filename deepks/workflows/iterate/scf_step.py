@@ -19,7 +19,7 @@ SCF_STEP_DIR = "00.scf"
 def create_scf_step(systems_train: Any,
                     systems_test: Optional[Any],
                     scf_soft: str,
-                    scf_args: Optional[Dict[str, Any]],
+                    scf_config: Optional[Dict[str, Any]],
                     scf_machine: Dict[str, Any],
                     proj_basis: Optional[str],
                     share_folder: str,
@@ -31,9 +31,9 @@ def create_scf_step(systems_train: Any,
         systems_train: Training systems
         systems_test: Test systems
         scf_soft: SCF backend ('pyscf' or 'abacus')
-        scf_args: SCF arguments (for ABACUS)
+        scf_config: Finalized SCF child-task config snapshot
         scf_machine: Machine settings
-        proj_basis: Projection basis file
+        proj_basis: Shared projection-basis file name, if materialized in share/
         share_folder: Share folder path
         cleanup: Whether to cleanup
         no_model: Whether to run without model (for init iteration)
@@ -43,7 +43,7 @@ def create_scf_step(systems_train: Any,
     """
     if scf_soft.lower() == 'abacus':
         # Merge scf_args with scf_machine
-        scf_config = dict(scf_args, **scf_machine) if scf_args else scf_machine
+        scf_runtime = dict(scf_config or {}, **scf_machine)
 
         scf_step = make_scf_abacus(
             systems_train=systems_train,
@@ -55,7 +55,7 @@ def create_scf_step(systems_train: Any,
             workdir=SCF_STEP_DIR,
             share_folder=share_folder,
             cleanup=cleanup,
-            **scf_config
+            **scf_runtime
         )
     elif scf_soft.lower() == 'pyscf':
         scf_step = make_scf(
@@ -64,9 +64,9 @@ def create_scf_step(systems_train: Any,
             train_dump=DATA_TRAIN,
             test_dump=DATA_TEST,
             no_model=no_model,
+            task_config=scf_config,
             workdir=SCF_STEP_DIR,
             share_folder=share_folder,
-            source_arg="scf_input.yaml",
             source_model=MODEL_FILE if not no_model else None,
             source_pbasis=proj_basis,
             cleanup=cleanup,

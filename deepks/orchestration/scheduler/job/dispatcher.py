@@ -259,8 +259,6 @@ class Dispatcher(object):
         task_hashes = [_hash_task_chunk(chunk) for chunk in task_chunks]
         job_list = job_handler['job_list']
         job_record = job_handler['job_record']
-        tag_failure_list = ['tag_failure_%d' % ii 
-            for ii in range(max(len(t['cmds']) for c in task_chunks for t in c))]
         resources = job_handler['resources']
         para_deg = job_handler['para_deg']
         outlog = job_handler['outlog']
@@ -293,8 +291,12 @@ class Dispatcher(object):
                 elif status == JobStatus.finished :
                     print('║║║ job %s finished' % job_uuid)
                     rjob['context'].download('.', backward_common_files)
-                    for task in cur_chunk:
+                    for task_idx, task in enumerate(cur_chunk):
                         if mark_failure:
+                            tag_failure_list = [
+                                'tag_failure_%d_%d' % (ii, task_idx)
+                                for ii in range(len(task['cmds']))
+                            ]
                             rjob['context'].download([task['dir']], tag_failure_list, 
                                 check_exists = True, mark_failure = False)
                             rjob['context'].download([task['dir']], task['backward_files'], 
@@ -404,4 +406,3 @@ class JobRecord(object):
             if self.record.get(chunk_hash, {}).get('finished', True):
                 completed += task_count
         return completed
-

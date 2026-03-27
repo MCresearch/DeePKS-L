@@ -180,8 +180,9 @@ class Batch(object) :
             ret += 'test $? -ne 0 && exit\n'
 
             # check if finished
+            tag_suffix = f'{step}_{idx}'
             sub = "\n"
-            sub += 'if [ ! -f tag_%d_finished ] ;then\n' % step
+            sub += 'if [ ! -f tag_%s_finished ] ;then\n' % tag_suffix
             # build command
             tmp_cmd = self.sub_script_cmd(icmd, iarg, res)
             if para_deg > 1 and not res.get("with_mpi", False) and para_res:
@@ -189,10 +190,10 @@ class Batch(object) :
             sub += '  %s 1>> %s 2>> %s \n' % (tmp_cmd, outlog, errlog)
             # check failure
             if not allow_failure:
-                sub += '  if test $? -ne 0; then exit 1; else touch tag_%d_finished; fi \n' % step
+                sub += '  if test $? -ne 0; then exit 1; else touch tag_%s_finished; fi \n' % tag_suffix
             else :
-                sub += '  if test $? -ne 0; then touch tag_failure_%d; fi \n' % step
-                sub += '  touch tag_%d_finished \n' % step
+                sub += '  if test $? -ne 0; then touch tag_failure_%s; fi \n' % tag_suffix
+                sub += '  touch tag_%s_finished \n' % tag_suffix
             sub += 'fi\n'
 
             # if parallel put step into subshell

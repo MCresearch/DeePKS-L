@@ -20,7 +20,7 @@ from deepks.io.utils import get_sys_name, get_with_prefix
 
 
 def solve_mol(mol, model, fields, labels=None,
-              proj_basis=None, penalties=None, device=None,
+              proj_basis=None, penalties=None, device="cpu",
               chkfile=None, verbose=0,
               **scf_args):
     
@@ -181,7 +181,7 @@ def dump_data(dir_name, **data_dict):
 
 
 def main(systems, model_file="model.pth", basis='ccpvdz', 
-         proj_basis=None, penalty_terms=None, device=None,
+         proj_basis=None, penalty_terms=None, device="cpu",
          dump_dir=".", dump_fields=DEFAULT_FNAMES, group=False, 
          mol_args=None, scf_args=None, verbose=0):
     if model_file is None or model_file.upper() == "NONE":

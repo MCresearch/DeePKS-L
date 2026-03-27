@@ -355,7 +355,7 @@ def parse_abacus_output(work_dir, dump_fields):
     return results
 
 
-def main(systems, model_file=None, proj_basis=None, device=None,
+def main(systems, model_file=None, proj_basis=None, device="cpu",
          dump_dir=".", dump_fields=None, group=False, verbose=0,
          **abacus_args):
     """Run ABACUS SCF calculations.

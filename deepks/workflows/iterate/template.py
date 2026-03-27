@@ -10,6 +10,7 @@ from deepks.orchestration.workflow.task import PythonTask, ShellTask
 from deepks.orchestration.workflow.task import BatchTask, GroupBatchTask, DPDispatcherTask
 from deepks.orchestration.workflow.workflow import Sequence
 
+
 def check_system_names(systems):
     sys_names = [get_sys_name(os.path.basename(s)) for s in systems]
     if len(set(sys_names)) != len(systems):
@@ -28,7 +29,7 @@ def make_cleanup(pattern="slurm-*.out", workdir=".", **task_args):
 
 
 def make_scf_task(*, workdir=".",
-                  arg_file="scf_input.yaml", source_arg=None,
+                  task_config=None,
                   model_file="model.pth", source_model=None,
                   proj_basis=None, source_pbasis=None,
                   systems="systems.raw", link_systems=True,
@@ -66,10 +67,6 @@ def make_scf_task(*, workdir=".",
             sys_str = " ".join(sys_paths)
 
     # --- file links ---
-    if arg_file and source_arg is not None:
-        link_share.append((source_arg, arg_file))
-    if arg_file:
-        forward_files.append(arg_file)
     if model_file and model_file.upper() != "NONE":
         if source_model is not None:
             link_prev.append((source_model, model_file))
@@ -86,6 +83,8 @@ def make_scf_task(*, workdir=".",
             backward_files.append(dump_dir)
 
     # --- build per-task override dict ---
+    from deepks.io.utils import deep_update
+
     TASK_YAML = "_scf_task.yaml"
     overrides = {"type": "scf", "scf_soft": "pyscf"}
     if sys_str is not None:
@@ -101,7 +100,8 @@ def make_scf_task(*, workdir=".",
 
     # Write the YAML content at construction time; BatchTask.preprocess() will
     # write it to disk before the shell command runs.
-    task_yaml_content = dump_yaml_str(overrides)
+    merged = deep_update(dict(task_config or {}), overrides)
+    task_yaml_content = dump_yaml_str(merged)
     command = f"{SCF_CMD} {TASK_YAML}"
 
     return BatchTask(
@@ -125,7 +125,7 @@ def make_run_scf(systems_train, systems_test=None, *,
                  train_dump="data_train", test_dump="data_test",
                  no_model=False, group_data=None,
                  workdir='.', share_folder='share', outlog="log.scf",
-                 source_arg="scf_input.yaml", source_model="model.pth",
+                 task_config=None, source_model="model.pth",
                  source_pbasis=None, dispatcher=None, resources=None,
                  sub_size=1, group_size=1, ingroup_parallel=1,
                  sub_res=None, python='python', **task_args):
@@ -152,7 +152,7 @@ def make_run_scf(systems_train, systems_test=None, *,
     sub_res = {**DEFAULT_SCF_SUB_RES, **sub_res}
     trn_tasks = [
         make_scf_task(systems=sset, workdir=f"task.trn.{i:0{nd}}",
-                      arg_file="../scf_input.yaml", source_arg=None,
+                      task_config=task_config,
                       model_file=model_file, source_model=None,
                       proj_basis=proj_basis, source_pbasis=None,
                       dump_dir=f"../{train_dump}", group_data=group_data,
@@ -161,7 +161,7 @@ def make_run_scf(systems_train, systems_test=None, *,
     ]
     tst_tasks = [
         make_scf_task(systems=sset, workdir=f"task.tst.{i:0{nd}}",
-                      arg_file="../scf_input.yaml", source_arg=None,
+                      task_config=task_config,
                       model_file=model_file, source_model=None,
                       proj_basis=proj_basis, source_pbasis=None,
                       dump_dir=f"../{test_dump}", group_data=group_data,
@@ -170,7 +170,6 @@ def make_run_scf(systems_train, systems_test=None, *,
     ]
     # set up optional args
     link_share = task_args.pop("link_share_files", [])
-    link_share.append((source_arg, "scf_input.yaml"))
     if source_pbasis:
         link_share.append((source_pbasis, "proj_basis.npz"))
     link_prev = task_args.pop("link_prev_files", [])
@@ -224,7 +223,7 @@ def make_stat_scf(systems_train, systems_test=None, *,
 def make_scf(systems_train, systems_test=None, *,
              train_dump="data_train", test_dump="data_test",
              no_model=False, workdir='00.scf', share_folder='share',
-             source_arg="scf_input.yaml", source_model="model.pth",
+             task_config=None, source_model="model.pth",
              source_pbasis=None, dispatcher=None, resources=None,
              dpdispatcher_machine=None, dpdispatcher_resources=None,
              sub_size=1, group_size=1, ingroup_parallel=1,
@@ -235,7 +234,7 @@ def make_scf(systems_train, systems_test=None, *,
         train_dump=train_dump, test_dump=test_dump,
         no_model=no_model, group_data=False,
         workdir=".", outlog="log.scf", share_folder=share_folder,
-        source_arg=source_arg, source_model=source_model, source_pbasis=source_pbasis,
+        task_config=task_config, source_model=source_model, source_pbasis=source_pbasis,
         dispatcher=dispatcher, resources=resources,
         dpdispatcher_machine=dpdispatcher_machine,
         dpdispatcher_resources=dpdispatcher_resources,
@@ -262,7 +261,7 @@ def make_scf(systems_train, systems_test=None, *,
 
 
 def make_train_task(*, workdir=".",
-                    arg_file="train_input.yaml", source_arg=None,
+                    arg_file="train_input.yaml", task_config=None,
                     restart_model=None, source_model=None,
                     proj_basis=None, source_pbasis=None,
                     save_model="model.pth", group_data=False,
@@ -275,12 +274,10 @@ def make_train_task(*, workdir=".",
                     python="python", **task_args):
     """Create a training task as a BatchTask running via the unified 'deepks' CLI.
 
-    The base train_input.yaml (from share) is read at construction time, merged
-    with runtime overrides (train_paths, test_paths, type, restart, etc.), and
-    written back to train_input.yaml in the workdir during preprocess().  No
-    separate _train_task.yaml is created.
+    The finalized train task config is merged with runtime path overrides and
+    written to train_input.yaml in the workdir during preprocess().
     """
-    from deepks.io.utils import load_yaml, deep_update
+    from deepks.io.utils import deep_update
 
     link_prev  = task_args.pop("link_prev_files",  [])
     link_share = task_args.pop("link_share_files", [])
@@ -303,12 +300,7 @@ def make_train_task(*, workdir=".",
     if save_model:
         backward_files.append(save_model)
 
-    # --- read base train_input.yaml from source_arg (share folder) if available ---
-    base_config = {}
-    if source_arg is not None and os.path.exists(source_arg):
-        base_config = load_yaml(source_arg) or {}
-
-    # --- build runtime overrides and merge into base ---
+    # --- build runtime overrides and merge into finalized base config ---
     overrides = {"type": "train"}
     if data_train:
         overrides["systems_train"] = os.path.join(data_train, "*")
@@ -321,7 +313,7 @@ def make_train_task(*, workdir=".",
     if save_model:
         overrides["ckpt_file"] = save_model
 
-    merged = deep_update(dict(base_config), overrides)
+    merged = deep_update(dict(task_config or {}), overrides)
     task_yaml_content = dump_yaml_str(merged)
     command = f"{SCF_CMD} {arg_file}"
 
@@ -344,7 +336,7 @@ def make_train_task(*, workdir=".",
 
 def make_run_train(source_train="data_train", source_test="data_test", *,
                    restart=True, source_model="model.pth", save_model="model.pth",
-                   source_pbasis=None, source_arg="train_input.yaml",
+                   task_config=None, source_pbasis=None,
                    workdir=".", share_folder="share", outlog="log.train",
                    dispatcher=None, resources=None,
                    dpdispatcher_machine=None,
@@ -354,7 +346,7 @@ def make_run_train(source_train="data_train", source_test="data_test", *,
     return make_train_task(
         workdir=workdir,
         arg_file="train_input.yaml",
-        source_arg=source_arg,
+        task_config=task_config,
         restart_model="model.pth" if restart else None,
         source_model=source_model if restart else None,
         proj_basis=None,
@@ -377,7 +369,7 @@ def make_run_train(source_train="data_train", source_test="data_test", *,
 
 def make_train(source_train="data_train", source_test="data_test", *,
                restart=True, source_model="model.pth", save_model="model.pth",
-               source_pbasis=None, source_arg="train_input.yaml",
+               task_config=None, source_pbasis=None,
                workdir="01.train", share_folder="share",
                dispatcher=None, resources=None,
                dpdispatcher_machine=None,
@@ -385,7 +377,7 @@ def make_train(source_train="data_train", source_test="data_test", *,
     run_train = make_run_train(
         source_train=source_train, source_test=source_test,
         restart=restart, source_model=source_model, save_model=save_model,
-        source_pbasis=source_pbasis, source_arg=source_arg,
+        task_config=task_config, source_pbasis=source_pbasis,
         workdir=".", share_folder=share_folder, outlog="log.train",
         dispatcher=dispatcher, resources=resources,
         dpdispatcher_machine=dpdispatcher_machine,
@@ -408,7 +400,7 @@ def make_iterate(systems_train, systems_test=None, *,
                  no_model=False, workdir="iter.{n_iter:02d}",
                  share_folder="share", cleanup=False,
                  scf_workdir="00.scf", train_workdir="01.train",
-                 source_arg="scf_input.yaml", source_model="model.pth",
+                 scf_task_config=None, source_model="model.pth",
                  source_pbasis=None,
                  scf_dispatcher=None, scf_resources=None,
                  scf_dpdispatcher_machine=None, scf_dpdispatcher_resources=None,
@@ -417,7 +409,7 @@ def make_iterate(systems_train, systems_test=None, *,
                  train_source_train="data_train", train_source_test="data_test",
                  train_restart=True, train_source_model="model.pth",
                  train_save_model="model.pth", train_source_pbasis=None,
-                 train_source_arg="train_input.yaml",
+                 train_task_config=None,
                  train_dispatcher=None, train_resources=None,
                  train_dpdispatcher_machine=None,
                  train_python="python",
@@ -427,7 +419,7 @@ def make_iterate(systems_train, systems_test=None, *,
         train_dump=train_dump, test_dump=test_dump,
         no_model=no_model, workdir=scf_workdir,
         share_folder=os.path.join("..", share_folder),
-        source_arg=os.path.join("..", source_arg),
+        task_config=scf_task_config,
         source_model=os.path.join("..", source_model) if not no_model else None,
         source_pbasis=os.path.join("..", source_pbasis) if source_pbasis else None,
         dispatcher=scf_dispatcher, resources=scf_resources,
@@ -444,8 +436,8 @@ def make_iterate(systems_train, systems_test=None, *,
         restart=train_restart,
         source_model=os.path.join("..", train_source_model),
         save_model=train_save_model,
+        task_config=train_task_config,
         source_pbasis=os.path.join("..", train_source_pbasis) if train_source_pbasis else None,
-        source_arg=os.path.join("..", train_source_arg),
         workdir=train_workdir,
         share_folder=os.path.join("..", share_folder),
         dispatcher=train_dispatcher, resources=train_resources,

@@ -8,7 +8,6 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
-from deepks.workflows.defaults import DEVICE
 from deepks.ml.models.corrnet import CorrNet
 from deepks.io.readers import GroupReader
 from deepks.io.utils import load_dirs, load_elem_table
@@ -22,7 +21,7 @@ def train(model, g_reader, n_epoch=1000, test_reader=None, *,
           start_lr=0.001, decay_steps=100, decay_rate=0.96, stop_lr=None, decay_rate_iter=None,
           weight_decay=0.,  fix_embedding=False,
           display_epoch=100, display_detail_test=0, display_natom_loss=False, ckpt_file="model.pth",
-          graph_file=None, device=DEVICE):
+                    graph_file=None, device="cpu"):
     
     model = model.to(device)
     model.eval()
@@ -202,7 +201,7 @@ def main(train_paths, test_paths=None,
          model_args=None, data_args=None, 
          preprocess_args=None, train_args=None, 
          proj_basis=None, fit_elem=False, 
-         seed=None, device=None):
+         seed=None, device="cpu"):
    
     if seed is None: 
         seed = np.random.randint(0, 2**32)
@@ -218,8 +217,7 @@ def main(train_paths, test_paths=None,
         model_args["proj_basis"] = proj_basis
     if ckpt_file is not None:
         train_args["ckpt_file"] = ckpt_file
-    if device is not None:
-        train_args["device"] = device
+    train_args["device"] = device
 
     train_paths = load_dirs(train_paths)
     # print(f'# training with {len(train_paths)} system(s)')

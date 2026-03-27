@@ -103,7 +103,6 @@ class SCFBackend(PhysicsBackend):
     This extends PhysicsBackend with SCF-specific methods.
     """
 
-    @abstractmethod
     def run_scf(self, systems: List[str], **kwargs) -> Dict[str, Any]:
         """Run SCF calculation on multiple systems.
 
@@ -114,11 +113,16 @@ class SCFBackend(PhysicsBackend):
         Returns:
             dict: SCF results
         """
-        pass
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement run_scf."
+        )
 
-    @abstractmethod
     def collect_stats(self, systems: List[str], **kwargs) -> Dict[str, Any]:
         """Collect statistics from SCF results.
+
+        Backends are not required to implement this method.  The stats
+        workflow calls backend-agnostic utilities in
+        ``deepks.physics.backends.stats`` directly.
 
         Args:
             systems: List of system paths
@@ -127,4 +131,7 @@ class SCFBackend(PhysicsBackend):
         Returns:
             dict: Statistics and aggregated data
         """
-        pass
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement collect_stats. "
+            "Use deepks.physics.backends.stats utilities directly."
+        )

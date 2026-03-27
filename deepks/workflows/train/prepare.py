@@ -83,7 +83,7 @@ def prepare_train_data(config: Dict[str, Any]) -> Tuple[GroupReader, Optional[Gr
         'restart': restart,
         'ckpt_file': config.get('ckpt_file', 'model.pth'),
         'graph_file': config.get('graph_file'),
-        'device': config.get('device'),
+        'device': config.get('device', 'cpu'),
         'preprocess_args': config.get('preprocess_args', {}),
         'train_args': config.get('train_args', {}),
         'fit_elem': fit_elem

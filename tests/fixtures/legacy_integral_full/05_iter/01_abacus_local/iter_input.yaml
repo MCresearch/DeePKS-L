@@ -1,7 +1,7 @@
 type: iterate
 # running machine settings
 scf_machine:
-  group_size: 1
+  group_size: 16
   resources:
     task_per_node: 1
   sub_size: 1
@@ -92,7 +92,7 @@ scf_abacus:
   ntype: 2
   ecutwfc: 100
   scf_thr: 1e-7
-  scf_nmax: 50
+  scf_nmax: 100
   dft_functional: "pbe"
   gamma_only: 1
   #STRU args
@@ -117,7 +117,7 @@ init_scf_abacus:
   ntype: 2
   ecutwfc: 100
   scf_thr: 1e-7
-  scf_nmax: 50
+  scf_nmax: 100
   dft_functional: "pbe"
   gamma_only: 1
   lattice_constant: 1.8897261255

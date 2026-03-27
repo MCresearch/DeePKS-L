@@ -7,10 +7,13 @@ This module handles the preparation stage of iterate workflow:
 """
 
 import os
+from copy import deepcopy
 from typing import Dict, Any, Tuple, Optional
 
 from deepks.orchestration.workflow.workflow import Iteration, Sequence
 from deepks.io.utils import copy_file, save_yaml, load_yaml
+from deepks.io.input.config import PYSCF_BACKEND_KEYS, ABACUS_BACKEND_KEYS
+from deepks.io.input.merger import merge_configs
 from deepks.physics.backends.pyscf.basis import load_basis, save_basis
 from deepks.physics.defaults import DEFAULT_SCF_ARGS_ABACUS
 from .scf_step import create_scf_step
@@ -55,6 +58,31 @@ SCF_STEP_DIR = "00.scf"
 TRN_STEP_DIR = "01.train"
 
 RECORD = "RECORD"
+
+TRAIN_TASK_CONFIG_KEYS = (
+    "model_args",
+    "data_args",
+    "preprocess_args",
+    "train_args",
+    "proj_basis",
+    "fit_elem",
+    "seed",
+    "device",
+    "model_file",
+    "e_name",
+    "d_name",
+    "group",
+    "output_prefix",
+    "batch_size",
+)
+
+SCF_TASK_COMMON_KEYS = (
+    "dump_fields",
+    "group",
+    "device",
+    "model_file",
+    "proj_basis",
+)
 
 
 def check_share_folder(data: Any, name: str, share_folder: str = "share") -> str:
@@ -116,6 +144,58 @@ def check_arg_dict(data: Any, default: Dict, strict: bool = True) -> Dict:
     return result
 
 
+def _load_task_config_source(data: Any, share_path: str, name: str) -> Dict[str, Any]:
+    """Resolve a legacy iterate child-config source into an in-memory dict."""
+    if data in (None, False):
+        return {}
+
+    if data is True:
+        return {}
+    elif isinstance(data, str):
+        data = load_yaml(data)
+    elif isinstance(data, dict):
+        data = deepcopy(data)
+    else:
+        raise ValueError(f"Invalid argument: {data}")
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected task config dict for {name}, got {type(data)}")
+    return data
+
+
+def _pick_config(config: Dict[str, Any], keys) -> Dict[str, Any]:
+    return {key: deepcopy(config[key]) for key in keys if key in config}
+
+
+def _save_task_snapshot(config: Dict[str, Any], share_path: str, name: str) -> str:
+    """Persist a finalized child-task config snapshot into share/."""
+    save_yaml(config, os.path.join(share_path, name))
+    return name
+
+
+def _build_train_task_config(config: Dict[str, Any], source: Any, share_path: str, name: str) -> Dict[str, Any]:
+    base_config = {"type": "train"}
+    base_config.update(_pick_config(config, TRAIN_TASK_CONFIG_KEYS))
+    return merge_configs(base_config, _load_task_config_source(source, share_path, name))
+
+
+def _build_pyscf_scf_task_config(config: Dict[str, Any], source: Any, share_path: str, name: str) -> Dict[str, Any]:
+    base_config = {"type": "scf", "scf_soft": "pyscf"}
+    base_config.update(_pick_config(config, SCF_TASK_COMMON_KEYS))
+    base_config.update(_pick_config(config, PYSCF_BACKEND_KEYS))
+    return merge_configs(base_config, _load_task_config_source(source, share_path, name))
+
+
+def _build_abacus_scf_task_config(config: Dict[str, Any], block_key: str) -> Dict[str, Any]:
+    base_config = {"type": "scf", "scf_soft": "abacus"}
+    block = config.get(block_key, {})
+    if isinstance(block, dict):
+        base_config.update(_pick_config(block, ABACUS_BACKEND_KEYS))
+    return base_config
+
+
 def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     """Prepare iteration workflow (Stage 1).
 
@@ -140,6 +220,8 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     Returns:
         tuple: (iteration_workflow, workdir, record_file)
     """
+    config = dict(config)
+
     # Extract configuration
     systems_train = config.get('systems_train')
     systems_test = config.get('systems_test')
@@ -149,7 +231,6 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     cleanup = config.get('cleanup', False)
     strict = config.get('strict', True)
     scf_soft = config.get('scf_soft', 'pyscf')
-
     # init_scf / init_train: trigger an iter.init bootstrap iteration
     init_scf = config.get('init_scf', None)
     init_train = config.get('init_train', None)
@@ -167,21 +248,12 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     # Handle SCF arguments
     scf_input = config.get('scf_input', True)
     scf_machine = config.get('scf_machine')
-    scf_abacus = config.get('scf_abacus')
-
-    if scf_soft.lower() == 'abacus':
-        scf_args_name = check_share_folder(scf_abacus, SCF_ARGS_NAME_ABACUS, share_path)
-        scf_abacus = check_arg_dict(scf_abacus, DEFAULT_SCF_ARGS_ABACUS, strict)
-    else:
-        scf_args_name = check_share_folder(scf_input, SCF_ARGS_NAME, share_path)
 
     scf_machine = check_arg_dict(scf_machine, DEFAULT_SCF_MACHINE, strict)
 
     # Handle training arguments
     train_input = config.get('train_input', True)
     train_machine = config.get('train_machine')
-
-    train_args_name = check_share_folder(train_input, TRN_ARGS_NAME, share_path)
     train_machine = check_arg_dict(train_machine, DEFAULT_TRN_MACHINE, strict)
 
     # Handle projection basis
@@ -189,6 +261,18 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     if proj_basis is not None and scf_soft.lower() == 'pyscf':
         save_basis(os.path.join(share_path, PROJ_BASIS), load_basis(proj_basis))
         proj_basis = PROJ_BASIS
+        config['proj_basis'] = proj_basis
+
+    if scf_soft.lower() == 'abacus':
+        scf_task_config = _build_abacus_scf_task_config(config, 'scf_abacus')
+        scf_task_config = check_arg_dict(scf_task_config, {"type": "scf", "scf_soft": "abacus", **DEFAULT_SCF_ARGS_ABACUS}, strict)
+        _save_task_snapshot(scf_task_config, share_path, SCF_ARGS_NAME_ABACUS)
+    else:
+        scf_task_config = _build_pyscf_scf_task_config(config, scf_input, share_path, SCF_ARGS_NAME)
+        _save_task_snapshot(scf_task_config, share_path, SCF_ARGS_NAME)
+
+    train_task_config = _build_train_task_config(config, train_input, share_path, TRN_ARGS_NAME)
+    _save_task_snapshot(train_task_config, share_path, TRN_ARGS_NAME)
 
     # Copy explicit init_model path into share/ so iter.00 can link it.
     if isinstance(init_model, str):
@@ -220,7 +304,7 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
         systems_train=systems_train,
         systems_test=systems_test,
         scf_soft=scf_soft,
-        scf_args=scf_abacus if scf_soft.lower() == 'abacus' else None,
+        scf_config=scf_task_config,
         scf_machine=scf_machine,
         proj_basis=proj_basis,
         share_folder=share_folder,
@@ -230,7 +314,7 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
 
     # Main-loop train step
     train_step = create_train_step(
-        train_args_name=train_args_name,
+        train_config=train_task_config,
         train_machine=train_machine,
         proj_basis=proj_basis,
         share_folder=share_folder,
@@ -249,15 +333,19 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     if init_scf or init_train:
         # Prepare init SCF step (always no_model=True: pure DFT bootstrap)
         if scf_soft.lower() == 'abacus':
-            init_scf_abacus = config.get('init_scf_abacus')
-            init_scf_args_name = check_share_folder(init_scf_abacus, INIT_SCF_NAME_ABACUS, share_path)
-            init_scf_abacus = check_arg_dict(init_scf_abacus, DEFAULT_SCF_ARGS_ABACUS, strict)
+            init_scf_config = _build_abacus_scf_task_config(config, 'init_scf_abacus')
+            init_scf_config = check_arg_dict(
+                init_scf_config,
+                {"type": "scf", "scf_soft": "abacus", **DEFAULT_SCF_ARGS_ABACUS},
+                strict,
+            )
+            _save_task_snapshot(init_scf_config, share_path, INIT_SCF_NAME_ABACUS)
 
             scf_init = create_scf_step(
                 systems_train=systems_train,
                 systems_test=systems_test,
                 scf_soft=scf_soft,
-                scf_args=init_scf_abacus,
+                scf_config=init_scf_config,
                 scf_machine=scf_machine,
                 proj_basis=proj_basis,
                 share_folder=share_folder,
@@ -265,12 +353,13 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
                 no_model=True  # No model for init SCF
             )
         else:  # pyscf
-            init_scf_args_name = check_share_folder(init_scf, INIT_SCF_NAME, share_path)
+            init_scf_config = _build_pyscf_scf_task_config(config, init_scf, share_path, INIT_SCF_NAME)
+            _save_task_snapshot(init_scf_config, share_path, INIT_SCF_NAME)
             scf_init = create_scf_step(
                 systems_train=systems_train,
                 systems_test=systems_test,
                 scf_soft=scf_soft,
-                scf_args=None,
+                scf_config=init_scf_config,
                 scf_machine=scf_machine,
                 proj_basis=proj_basis,
                 share_folder=share_folder,
@@ -279,9 +368,10 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
             )
 
         # Prepare init train step (energy-only, no restart)
-        init_train_args_name = check_share_folder(init_train, INIT_TRN_NAME, share_path)
+        init_train_config = _build_train_task_config(config, init_train, share_path, INIT_TRN_NAME)
+        _save_task_snapshot(init_train_config, share_path, INIT_TRN_NAME)
         train_init = create_train_step(
-            train_args_name=init_train_args_name,
+            train_config=init_train_config,
             train_machine=train_machine,
             proj_basis=proj_basis,
             share_folder=share_folder,

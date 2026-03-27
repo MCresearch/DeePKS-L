@@ -12,7 +12,6 @@ from deepks.ml.models.corrnet import CorrNet
 from deepks.ml.utils import preprocess, fit_elem_const
 from deepks.ml.train.train import train as train_function
 from deepks.io.readers import GroupReader
-from deepks.workflows.defaults import DEVICE
 
 
 def train_model(train_reader: GroupReader,
@@ -36,7 +35,7 @@ def train_model(train_reader: GroupReader,
     restart = model_config.get('restart')
     ckpt_file = model_config.get('ckpt_file', 'model.pth')
     graph_file = model_config.get('graph_file')
-    device = model_config.get('device', DEVICE)
+    device = model_config.get('device', 'cpu')
     preprocess_args = model_config.get('preprocess_args', {})
     train_args = model_config.get('train_args', {})
     fit_elem = model_config.get('fit_elem', False)

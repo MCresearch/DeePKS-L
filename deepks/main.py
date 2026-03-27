@@ -5,32 +5,39 @@ import os
 import sys
 
 
-def _get_model_backend():
-    """Get model backend instance."""
-    from deepks.ml.backend import CorrNetModelBackend
-    return CorrNetModelBackend()
+def _configure_line_buffered_stdio():
+    """Best-effort line buffering for CLI text streams.
 
-
-def _get_physics_backend(scf_soft='pyscf'):
-    """Get physics backend based on scf_soft parameter.
-
-    Args:
-        scf_soft: SCF software name ('pyscf' or 'abacus')
-
-    Returns:
-        PhysicsBackend instance
+    This keeps long-running CLI output visible under schedulers and redirected
+    pipes without replacing ``sys.stdout`` / ``sys.stderr`` wrappers.
     """
-    from deepks.physics.backends import get_scf_backend
-    return get_scf_backend(scf_soft)
+    for name in ('stdout', 'stderr'):
+        stream = getattr(sys, name, None)
+        reconfigure = getattr(stream, 'reconfigure', None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(line_buffering=True)
+        except (OSError, ValueError, TypeError):
+            continue
+
+
+def postprocess_result(result):
+    """Convert successful workflow results into a zero process exit code.
+
+    Console-script entrypoints execute this function under ``sys.exit(main())``.
+    Returning workflow payloads such as dicts or strings therefore turns a
+    successful run into exit code 1 with the payload echoed to stderr.
+    """
+    _ = result
+    return 0
 
 
 def main():
     """Main entry point for DeePKS CLI."""
     import argparse
-    # Force line-buffered stdout/stderr so output appears in log.iter in real time
-    # even when the process is launched with >> redirection (non-TTY).
-    sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1, closefd=False)
-    sys.stderr = open(sys.stderr.fileno(), mode='w', buffering=1, closefd=False)
+
+    _configure_line_buffered_stdio()
 
     parser = argparse.ArgumentParser(
         prog="deepks",
@@ -50,41 +57,17 @@ def main():
 
     args = parser.parse_args()
 
-    # Check if config file exists
     if not os.path.exists(args.config):
         print(f"Error: Configuration file '{args.config}' not found", file=sys.stderr)
         sys.exit(1)
 
-    # Load and process configuration
-    from deepks.io.input import load_config, get_default_config
-    from deepks.io.input.merger import merge_configs, apply_parameter_inheritance
+    from deepks.io.input import build_runtime_config
     from deepks.io.input.dispatcher import dispatch_command
 
     try:
-        # Load configuration file
-        config = load_config(args.config)
-
-        # Determine type from config
-        if 'type' not in config:
-            print("Error: 'type' field is required in configuration file", file=sys.stderr)
-            print("Valid types: train, test, scf, stats, iterate", file=sys.stderr)
-            sys.exit(1)
-
-        task_type = config['type']
-
-        # Get defaults based on type and backend
-        scf_soft = config.get('scf_soft', 'pyscf')
-        defaults = get_default_config(task_type, scf_soft)
-
-        # Merge defaults with config
-        config = merge_configs(defaults, config)
-
-        # Apply parameter inheritance for iterate type
-        if task_type == 'iterate':
-            config = apply_parameter_inheritance(config)
-
-        # Dispatch to appropriate handler
-        dispatch_command(config)
+        runtime_config = build_runtime_config(args.config)
+        result = dispatch_command(runtime_config)
+        return postprocess_result(result)
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
