@@ -72,7 +72,7 @@ def _prepare_runtime_tree(monkeypatch):
         monkeypatch.setattr(scf_step, "make_scf_abacus", _fake_make_scf_abacus)
         monkeypatch.setattr(train_step, "make_train", _fake_make_train)
     yield
-    _remove_generated()
+    # _remove_generated()
 
 
 def run_iter():

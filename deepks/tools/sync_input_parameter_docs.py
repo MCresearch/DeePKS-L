@@ -7,7 +7,7 @@ from pathlib import Path
 from deepks.io.input import render_input_parameter_doc
 
 
-DOC_SYNC_TARGET = Path(__file__).resolve().parents[1] / "docs" / "input-parameter.md"
+DOC_SYNC_TARGET = Path(__file__).resolve().parents[2] / "docs" / "input-parameter.md"
 
 
 def sync_input_parameter_docs(output_path=DOC_SYNC_TARGET):

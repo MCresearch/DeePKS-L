@@ -39,15 +39,15 @@ def _run_and_capture(func, yaml_file: Path, log_file: Path, err_file: Path):
 
 
 def _legacy_integral_fixture_root() -> Path:
-    return Path(__file__).resolve().parents[1] / "fixtures" / "legacy_integral_full"
+    return Path(__file__).resolve().parent / "legacy_integral_full"
 
 
 def test_migrated_integral_stats_sample(tmp_path):
     """
-    依赖：`deepks.pipelines.scf.stats.print_stats` 与迁移样例 `tests/fixtures/legacy_integral/04_stats/stats_input.yaml`。
+    依赖：`deepks.pipelines.scf.stats.print_stats` 与迁移样例 `tests/integration/scenarios/legacy_integral_full/stats/stats_input.yaml`。
     测试内容：迁移历史 stats 样例，验证关键输出字段与参考值一致。
     """
-    base = _legacy_integral_fixture_root() / "04_stats"
+    base = _legacy_integral_fixture_root() / "stats"
     log_file = tmp_path / "log.stats"
     err_file = tmp_path / "err.stats"
 
@@ -65,10 +65,10 @@ def test_migrated_integral_stats_sample(tmp_path):
 
 def test_migrated_integral_scf_placeholder_sample():
     """
-    依赖：迁移样例 `tests/fixtures/legacy_integral/03_scf/scf_input.yaml`。
+    依赖：迁移样例 `tests/integration/scenarios/legacy_integral_full/scf/scf_input.yaml`。
     测试内容：迁移历史 SCF 占位样例，验证输入文件可解析且包含关键配置字段。
     """
-    yaml_file = _legacy_integral_fixture_root() / "03_scf" / "scf_input.yaml"
+    yaml_file = _legacy_integral_fixture_root() / "scf" / "scf_input.yaml"
     cfg = load_yaml(str(yaml_file))
     assert isinstance(cfg, dict)
     assert "basis" in cfg
@@ -84,7 +84,7 @@ def test_migrated_integral_train_sample_if_pyabacus(tmp_path):
     if not _has_module("pyabacus"):
         pytest.skip("pyabacus not installed; skip legacy integral train sample")
 
-    base = _legacy_integral_fixture_root() / "01_train"
+    base = _legacy_integral_fixture_root() / "train"
     log_file = tmp_path / "log.train"
     err_file = tmp_path / "err.train"
 
@@ -105,7 +105,7 @@ def test_migrated_integral_test_sample_if_pyabacus(tmp_path):
     if not _has_module("pyabacus"):
         pytest.skip("pyabacus not installed; skip legacy integral test sample")
 
-    base = _legacy_integral_fixture_root() / "02_test"
+    base = _legacy_integral_fixture_root() / "test"
     log_file = tmp_path / "log.test"
     err_file = tmp_path / "err.test"
 
@@ -118,10 +118,10 @@ def test_migrated_integral_test_sample_if_pyabacus(tmp_path):
 
 def test_migrated_integral_iterate_reference_catalog():
     """
-    依赖：迁移样例 `tests/fixtures/legacy_integral_full/05_iter/01_abacus_local/iter_input.yaml`。
+    依赖：迁移样例 `tests/integration/scenarios/legacy_integral_full/iterate/abacus_local/iter_input.yaml`。
     测试内容：保留历史 `test_iterate.py` 的关键参考信息，校验迭代输入与期望日志标记。
     """
-    base = _legacy_integral_fixture_root() / "05_iter" / "01_abacus_local"
+    base = _legacy_integral_fixture_root() / "iterate" / "abacus_local"
     yaml_file = base / "iter_input.yaml"
     cfg = load_yaml(str(yaml_file))
 

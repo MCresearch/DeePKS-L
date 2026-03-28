@@ -189,11 +189,10 @@ from deepks.pipelines.iterate.iterate import make_iterate
 
 Tests are organized by type:
 
+- `tests/data/` - Shared test data and golden outputs
+- `tests/smoke/` - Smoke tests for CLI and basic functionality
 - `tests/unit/` - Unit tests for individual components
 - `tests/integration/` - Integration tests for component interactions
-- `tests/smoke/` - Smoke tests for CLI and basic functionality
-- `tests/regression/` - Regression tests to prevent breaking changes
-- `tests/fixtures/` - Test data and fixtures
 
 Run tests with:
 ```bash

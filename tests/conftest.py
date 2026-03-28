@@ -26,16 +26,16 @@ def _safe_remove(path: Path) -> None:
 
 def _cleanup_legacy_integral_full_artifacts() -> None:
     """删除 legacy integral 样例在运行中产生的状态文件，避免历史状态污染。"""
-    root = Path(__file__).resolve().parent / "fixtures" / "legacy_integral_full"
+    root = Path(__file__).resolve().parent / "integration" / "scenarios" / "legacy_integral_full"
     if not root.exists():
         return
 
     # Common logs/stderr under sample cases.
     cleanup_patterns = {
-        "01_train": ("log.train", "err"),
-        "02_test": ("log.test", "err"),
-        "03_scf": ("log.scf", "err"),
-        "04_stats": ("log.stats", "err"),
+        "train": ("log.train", "err"),
+        "test": ("log.test", "err"),
+        "scf": ("log.scf", "err"),
+        "stats": ("log.stats", "err"),
     }
     for rel_dir, patterns in cleanup_patterns.items():
         base = root / rel_dir
@@ -45,7 +45,7 @@ def _cleanup_legacy_integral_full_artifacts() -> None:
             for target in base.glob(pattern):
                 _safe_remove(target)
 
-    iter_root = root / "05_iter" / "01_abacus_local"
+    iter_root = root / "iterate" / "abacus_local"
     if iter_root.exists():
         for fname in ("log.iter", "err", "RECORD", "share"):
             _safe_remove(iter_root / fname)
@@ -75,8 +75,8 @@ def _preclean_generated_artifacts(request):
     """仅在可能写入 legacy fixture 目录的测试中执行预清理。"""
     node_path = Path(str(request.fspath)).as_posix()
     needs_cleanup = (
-        "tests/fixtures/legacy_integral_full/" in node_path
-        or node_path.endswith("tests/integration/test_migrated_integral_samples.py")
+        "tests/integration/scenarios/legacy_integral_full/" in node_path
+        or node_path.endswith("tests/integration/scenarios/test_migrated_integral_samples.py")
     )
     if needs_cleanup:
         _cleanup_legacy_integral_full_artifacts()

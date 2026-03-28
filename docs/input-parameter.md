@@ -9,7 +9,7 @@
 - Preferred backend blocks are `scf_pyscf` and `scf_abacus`.
 - For iterate + ABACUS, `init_scf_abacus` inherits from `scf_abacus` when omitted; legacy `init_scf` dictionaries with ABACUS keys are normalized into `init_scf_abacus` and still trigger bootstrap iteration.
 - Packaged test configs keep backward-compatible `data_paths <- systems_test` mapping.
-- Docs can be regenerated in-repo with `python tools/sync_input_parameter_docs.py`.
+- Docs can be regenerated in-repo with `python -m deepks.tools.sync_input_parameter_docs`.
 
 ## Core parameters
 
@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | `type` | `string` | `all` | `required` | Top-level task selector. Supported values: train, test, scf, stats, iterate. |
 | `verbose` | `int` | `all` | `1` | Global verbosity level. |
-| `device` | `string` | `train, test, scf, iterate` | `'cpu'` | Execution device for ML-backed runtime paths. |
+| `device` | `string` | `train, test, scf, iterate` | `'cuda:0'` | Execution device for ML-backed runtime paths. |
 | `scf_soft` | `string` | `scf, stats, iterate` | `'abacus'` | SCF backend selector. Supported values: pyscf, abacus. |
 
 ## Train / test data parameters

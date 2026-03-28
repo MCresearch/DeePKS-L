@@ -1,53 +1,48 @@
-# DeePKS 测试目录说明（重构前护栏）
+# DeePKS 测试目录说明
 
-本目录用于在重构开始前“冻结行为基线”。
-原则：**先加测试，再改架构**。
+测试目录按“验证范围”组织，而不是按历史来源组织。
 
 ## 目录含义
 
+- `data/`
+  - 只放纯测试数据、golden 输出、最小输入系统。
+  - 禁止放 `test_*.py`。
+
 - `smoke/`
-	- 含义：冒烟测试（Smoke Test）。
-	- 作用：只验证“系统能否点火成功”，例如命令入口、帮助信息、模块导入。
-	- 特点：快、轻、依赖少，适合每次提交都跑。
+  - 只做最薄的存活性检查。
+  - 例如 CLI 帮助页、入口导入、最小命令可调用性。
 
 - `unit/`
-	- 含义：单元测试。
-	- 作用：验证单个模块/函数逻辑是否正确（不强调跨模块流程）。
-	- 特点：定位问题最精确。
+  - 只测子功能与局部边界。
+  - 目录结构尽量镜像源码架构，例如 `io/input`、`workflows/iterate`、`orchestration/scheduler`。
 
 - `integration/`
-	- 含义：集成测试。
-	- 作用：验证多个模块拼接后的工作流行为（如断点续跑）。
-	- 特点：比单元慢，但能发现接口边界问题。
+  - 测完整工作流或多层协作。
+  - 历史样例场景统一放在 `integration/scenarios/`。
 
-- `regression/`
-	- 含义：回归测试。
-	- 作用：保证新改动不会破坏既有行为（数值、日志、输出结构）。
+## 组织规则
 
-- `fixtures/`
-	- 含义：测试夹具数据。
-	- 作用：放最小输入样本与 golden 基线输出。
-
-## 当前阶段目标
-
-1. 不改核心业务代码；
-2. 先补齐测试骨架和最小可执行护栏；
-3. 逐步把占位测试替换为功能测试。
-
-## 当前状态（已完成）
-
-- 历史测试样例已迁移到新分层目录：`unit/` 与 `integration/`。
-- 原始 `unittests/` 与 `integral/` 目录已删除，避免双份维护。
-- 当前仅维护一份可执行测试代码（新框架）。
-- 历史 integral 样例输入已迁移到 `fixtures/legacy_integral_full/`。
+- 新的纯数据统一进 `tests/data/`。
+- 新的样例驱动工作流测试统一进 `tests/integration/scenarios/`。
+- `tests/unit/` 顶层不再新增平铺测试文件，必须落到与源码对应的子目录。
+- `tests/data/` 中不允许出现 `test_*.py`。
 
 ## 运行方式
 
-- 全量（新框架）：
-	- `pytest -q tests/smoke tests/unit tests/integration tests/regression`
+- 全量：
+  - `pytest -q tests/smoke tests/unit tests/integration`
+
+- 仅 smoke：
+  - `pytest -q tests/smoke`
+
+- 仅 unit：
+  - `pytest -q tests/unit`
+
+- 仅 integration：
+  - `pytest -q tests/integration`
 
 ## 可选依赖说明
 
 - `pyscf`、`abacus`、`pyabacus` 为可选依赖。
-- 若环境未安装，对应测试会自动 `skip`，不影响其余测试回归。
-- `pyabacus` 相关测试在仓库默认策略下也会被禁用；仅在显式设置 `ENABLE_PYABACUS_TESTS=1` 时启用。
+- 若环境未安装，对应测试会自动 `skip`，不影响其他层级。
+- `pyabacus` 相关测试默认关闭；仅在显式设置 `ENABLE_PYABACUS_TESTS=1` 时启用。
