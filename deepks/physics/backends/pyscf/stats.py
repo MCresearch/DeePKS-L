@@ -1,9 +1,4 @@
-"""PySCF-specific data collection helpers.
-
-General-purpose stats functions (print_stats, load_stat, concat_data, etc.)
-have been moved to deepks.physics.backends.stats and are re-exported here
-for backward compatibility.
-"""
+"""PySCF-specific data collection helpers."""
 
 import os
 import sys
@@ -19,8 +14,8 @@ from deepks.io.utils import check_list, check_array
 from deepks.io.utils import load_array, load_yaml
 from deepks.io.utils import get_sys_name, get_with_prefix
 
-# Re-export general stats functions for backward compatibility
-from deepks.physics.backends.stats import (
+# Re-export general stats functions from the stats workflow runtime layer
+from deepks.workflows.stats.runtime.reporting import (
     concat_data,
     print_stats,
     print_stats_conv,
@@ -32,7 +27,6 @@ from deepks.physics.backends.stats import (
     load_stat_grouped,
     print_stats_per_sys,
 )
-
 
 # ---------------------------------------------------------------------------
 # PySCF-specific tools: depend on e_base.npy / f_base.npy written by PySCF

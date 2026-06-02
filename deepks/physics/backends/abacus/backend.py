@@ -37,7 +37,10 @@ class AbacusBackend(SCFBackend):
             config: ABACUS-specific configuration
         """
         super().__init__(config)
-        self.backend_name = 'abacus'
+
+    @property
+    def backend_name(self) -> str:
+        return "abacus"
 
     def generate_input(self, system_data: Dict[str, Any],
                       output_dir: str, **kwargs) -> None:
@@ -176,42 +179,3 @@ class AbacusBackend(SCFBackend):
             files.append('OUT.ABACUS/deepks.bandgap')
 
         return files
-
-    def run_scf(self, systems: List[str], **kwargs) -> Dict[str, Any]:
-        """Run SCF calculation on multiple systems.
-
-        This method delegates to the SCF workflow.
-
-        Args:
-            systems: List of system paths
-            **kwargs: SCF parameters
-
-        Returns:
-            dict: SCF results
-        """
-        from deepks.workflows.scf import run_scf_workflow
-
-        config = {
-            'type': 'scf',
-            'scf_soft': 'abacus',
-            'systems': systems,
-            **self.config,
-            **kwargs
-        }
-
-        return run_scf_workflow(config)
-
-    def collect_stats(self, systems: List[str], **kwargs) -> Dict[str, Any]:
-        """Collect statistics from SCF results.
-
-        Args:
-            systems: List of system paths
-            **kwargs: Collection parameters
-
-        Returns:
-            dict: Statistics
-        """
-        # This will be implemented when we refactor the stats workflow
-        raise NotImplementedError(
-            "collect_stats will be implemented in stats workflow refactoring"
-        )

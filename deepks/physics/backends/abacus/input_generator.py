@@ -4,7 +4,7 @@ This module generates INPUT, STRU, and KPT files for ABACUS calculations.
 """
 
 from typing import Dict, Any, List
-from deepks.physics.defaults import BOHR2ANG
+from deepks.physics.constants import BOHR2ANG
 
 
 def make_abacus_scf_kpt(fp_params: Dict[str, Any]) -> str:

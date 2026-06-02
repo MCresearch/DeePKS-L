@@ -9,6 +9,7 @@
 import numpy as np
 
 from deepks.io.readers import GroupReader
+from deepks.interface.batch import TaskBatch
 
 
 def _make_sys(path, nframe, natm, ndesc):
@@ -55,4 +56,22 @@ def test_groupreader_sample_all_batch(tmp_path):
 		assert b["lb_e"].ndim == 2
 		assert b["eig"].ndim == 3
 
+
+def test_groupreader_exposes_task_batch_iterators(tmp_path):
+	"""
+	依赖：`deepks.io.readers.GroupReader.sample_all_task_batches`。
+	测试内容：GroupReader 应提供结构化 TaskBatch 批次迭代接口。
+	"""
+	s1 = tmp_path / "g1"
+	s2 = tmp_path / "g2"
+	_make_sys(s1, nframe=3, natm=2, ndesc=4)
+	_make_sys(s2, nframe=3, natm=2, ndesc=4)
+
+	gr = GroupReader([str(s1), str(s2)], batch_size=2, group_batch=1)
+	batches = list(gr.sample_all_task_batches())
+	assert len(batches) == 4
+	for b in batches:
+		assert isinstance(b, TaskBatch)
+		assert b.model_inputs["descriptor"].ndim == 3
+		assert b.targets["energy"].ndim == 2
 

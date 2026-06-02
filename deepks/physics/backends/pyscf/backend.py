@@ -32,7 +32,10 @@ class PySCFBackend(SCFBackend):
             config: PySCF-specific configuration
         """
         super().__init__(config)
-        self.backend_name = 'pyscf'
+
+    @property
+    def backend_name(self) -> str:
+        return "pyscf"
 
     def generate_input(self, system_data: Dict[str, Any],
                       output_dir: str, **kwargs) -> None:
@@ -131,41 +134,3 @@ class PySCFBackend(SCFBackend):
             list: Output file names
         """
         return ['pyscf_output.pkl']  # Serialized results
-
-    def run_scf(self, systems: List[str], **kwargs) -> Dict[str, Any]:
-        """Run SCF calculation on multiple systems.
-
-        Args:
-            systems: List of system paths
-            **kwargs: SCF parameters
-
-        Returns:
-            dict: SCF results
-
-        Raises:
-            NotImplementedError: PySCF workflow not yet migrated
-        """
-        # This would delegate to PySCF workflow
-        # For now, use old implementation
-        raise NotImplementedError(
-            "PySCF SCF workflow not yet implemented in new architecture. "
-            "Use old code path for now."
-        )
-
-    def collect_stats(self, systems: List[str], **kwargs) -> Dict[str, Any]:
-        """Collect statistics from PySCF results.
-
-        Args:
-            systems: List of system paths
-            **kwargs: Collection parameters
-
-        Returns:
-            dict: Statistics
-
-        Raises:
-            NotImplementedError: PySCF stats collection not yet migrated
-        """
-        raise NotImplementedError(
-            "PySCF stats collection not yet implemented in new architecture. "
-            "Use old code path for now."
-        )

@@ -61,11 +61,11 @@ def main():
         print(f"Error: Configuration file '{args.config}' not found", file=sys.stderr)
         sys.exit(1)
 
-    from deepks.io.input import build_runtime_config
+    from deepks.io.input import load_runtime_config
     from deepks.io.input.dispatcher import dispatch_command
 
     try:
-        runtime_config = build_runtime_config(args.config)
+        runtime_config = load_runtime_config(args.config)
         result = dispatch_command(runtime_config)
         return postprocess_result(result)
 

@@ -4,8 +4,8 @@
 测试列表：
 - `test_migrated_unit_files_exist`
 - `test_migrated_integration_files_exist`
-- `test_legacy_folders_removed`
-- `test_legacy_integral_fixtures_exist`
+- `test_old_folders_removed`
+- `test_integral_full_scenario_exists`
 """
 
 from pathlib import Path
@@ -37,7 +37,7 @@ def test_migrated_integration_files_exist():
 		assert (root / name).is_file()
 
 
-def test_legacy_folders_removed():
+def test_old_folders_removed():
 	"""
 	依赖：仓库测试目录结构。
 	测试内容：验证原始 `tests/unittests` 与 `tests/integral` 已移除，避免重复维护。
@@ -47,12 +47,12 @@ def test_legacy_folders_removed():
 	assert not (root / "integral").exists()
 
 
-def test_legacy_integral_fixtures_exist():
+def test_integral_full_scenario_exists():
 	"""
-	依赖：新场景目录 `tests/integration/scenarios/legacy_integral_full`。
-	测试内容：验证历史 integral 样例数据已迁移到 integration scenarios。
+	依赖：场景目录 `tests/integration/scenarios/integral_full`。
+	测试内容：验证 integral 全流程样例已收纳到 integration scenarios。
 	"""
-	root = Path(__file__).resolve().parent / "legacy_integral_full"
+	root = Path(__file__).resolve().parent / "integral_full"
 	assert root.is_dir()
 	assert (root / "train" / "train_input.yaml").is_file()
 	assert (root / "test" / "test_input.yaml").is_file()

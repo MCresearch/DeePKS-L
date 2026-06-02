@@ -12,13 +12,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from deepks.workflows.iterate.template_abacus import coord_to_atom, make_convert_scf_abacus
+from deepks.physics.backends.abacus.iterate_ops import coord_to_atom, load_and_share_abacus_assets
+from deepks.physics.backends.abacus.iterate_sequence import make_convert_scf_abacus
 from deepks.orchestration.workflow.task import PythonTask
 
 
 def test_coord_to_atom_basic(tmp_path):
 	"""
-	依赖：`deepks.workflows.iterate.template_abacus.coord_to_atom`。
+	依赖：`deepks.physics.backends.abacus.iterate_ops.coord_to_atom`。
 	测试内容：验证 `coord.npy + type_map.raw + type.raw` 正确合成为 `atom` 三维数组。
 	"""
 	p = tmp_path / "sys"
@@ -37,7 +38,7 @@ def test_coord_to_atom_basic(tmp_path):
 
 def test_coord_to_atom_missing_coord_raises(tmp_path):
 	"""
-	依赖：`deepks.workflows.iterate.template_abacus.coord_to_atom`。
+	依赖：`deepks.physics.backends.abacus.iterate_ops.coord_to_atom`。
 	测试内容：当缺少 `coord.npy` 时应抛出 `FileNotFoundError`。
 	"""
 	p = tmp_path / "bad"
@@ -48,7 +49,7 @@ def test_coord_to_atom_missing_coord_raises(tmp_path):
 
 def test_make_convert_scf_abacus_returns_pythontask(tmp_path):
 	"""
-	依赖：`deepks.workflows.iterate.template_abacus.make_convert_scf_abacus`。
+	依赖：`deepks.physics.backends.abacus.iterate_sequence.make_convert_scf_abacus`。
 	测试内容：在本地无集群环境下，验证该函数能构建可执行 `PythonTask` 且参数完整。
 	"""
 	trn = tmp_path / "group.00"
@@ -73,3 +74,22 @@ def test_make_convert_scf_abacus_returns_pythontask(tmp_path):
 	assert task.call_kwargs["no_model"] is True
 
 
+def test_load_and_share_abacus_assets_accepts_scalar_strings(tmp_path):
+	orb = tmp_path / "x.orb"
+	pp = tmp_path / "x.upf"
+	proj = tmp_path / "jle.orb"
+	share = tmp_path / "share"
+	share.mkdir()
+	orb.write_text("orb", encoding="utf-8")
+	pp.write_text("pp", encoding="utf-8")
+	proj.write_text("proj", encoding="utf-8")
+
+	orb_files, pp_files, proj_files = load_and_share_abacus_assets(
+		str(orb),
+		str(pp),
+		str(proj),
+		str(share),
+	)
+	assert len(orb_files) == 1
+	assert len(pp_files) == 1
+	assert len(proj_files) == 1

@@ -9,6 +9,7 @@
 import numpy as np
 
 from deepks.io.readers import Reader
+from deepks.interface.batch import TaskBatch
 
 
 def test_reader_minimal_fields_only(tmp_path):
@@ -45,4 +46,19 @@ def test_reader_with_conv_filter(tmp_path):
 	assert rd.get_nframes() == 2
 	assert sample["lb_e"].shape[0] == 2
 
+
+def test_reader_exposes_task_batch_views(tmp_path):
+	"""
+	依赖：`deepks.io.readers.Reader.sample_all_task_batch`。
+	测试内容：Reader 应提供结构化 TaskBatch 视图，且保持 descriptor/energy 映射。
+	"""
+	nframe, natm, ndesc = 2, 2, 3
+	np.save(tmp_path / "l_e_delta.npy", np.arange(nframe).reshape(-1, 1))
+	np.save(tmp_path / "dm_eig.npy", np.random.randn(nframe, natm, ndesc))
+
+	rd = Reader(str(tmp_path), batch_size=1)
+	batch = rd.sample_all_task_batch()
+	assert isinstance(batch, TaskBatch)
+	assert batch.model_inputs["descriptor"].shape == (nframe, natm, ndesc)
+	assert batch.targets["energy"].shape == (nframe, 1)
 

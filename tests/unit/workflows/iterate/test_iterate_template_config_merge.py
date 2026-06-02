@@ -4,7 +4,7 @@ import io
 
 from ruamel.yaml import YAML
 
-from deepks.workflows.iterate.template import make_run_scf, make_train_task
+from deepks.workflows.iterate.support import make_run_scf, make_train_task
 
 
 def _load_yaml_text(content):

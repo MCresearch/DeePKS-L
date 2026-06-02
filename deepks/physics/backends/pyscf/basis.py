@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from deepks.physics.defaults import DEFAULT_BASIS, DEFAULT_SYMB
+from deepks.physics.backends.pyscf.settings import DEFAULT_BASIS, DEFAULT_SYMB
 from deepks.io.utils import load_array
 
 

@@ -20,8 +20,8 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pyscf")
-from deepks.physics.defaults import BOHR2ANG
-from deepks.physics.backends.pyscf.fields import _Lunit, atom_data, isinbohr, select_fields
+from deepks.physics.constants import BOHR2ANG
+from deepks.physics.backends.pyscf.schema import _Lunit, atom_data, isinbohr, select_fields
 
 
 def test_select_fields_by_name_and_alias():
@@ -94,5 +94,3 @@ def test_atom_data_filters_ghost_atoms():
 	out = atom_data(Mol())
 	assert out.shape == (2, 4)
 	assert np.allclose(out[:, 0], [1.0, 8.0])
-
-

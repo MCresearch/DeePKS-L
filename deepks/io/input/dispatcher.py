@@ -2,14 +2,7 @@
 
 from copy import deepcopy
 
-
-TASK_PARAM_BUNDLES = {
-    'train': 'train_param',
-    'test': 'test_param',
-    'scf': 'scf_param',
-    'stats': 'stats_param',
-    'iterate': 'iterate_param',
-}
+from .packager import get_payload_key
 
 WORKFLOW_ENTRYPOINTS = {
     'train': ('deepks.workflows.train', 'run_train_workflow'),
@@ -18,16 +11,6 @@ WORKFLOW_ENTRYPOINTS = {
     'stats': ('deepks.workflows.stats', 'run_stats_workflow'),
     'iterate': ('deepks.workflows.iterate', 'run_iterate_workflow'),
 }
-
-
-def _build_task_config(runtime_config, task_key):
-    raw_config = deepcopy(runtime_config.get('raw_config', {}))
-    global_param = deepcopy(runtime_config.get('global_param', {}))
-    task_param = deepcopy(runtime_config.get(task_key, {}))
-
-    raw_config.update(global_param)
-    raw_config.update(task_param)
-    return raw_config
 
 
 def _get_workflow_handler(task_type):
@@ -47,9 +30,10 @@ def dispatch_command(runtime_config):
     """
     task_type = runtime_config.get('type')
 
-    if task_type not in TASK_PARAM_BUNDLES:
+    if task_type not in WORKFLOW_ENTRYPOINTS:
         raise ValueError(f"Unknown type: {task_type}")
 
-    config = _build_task_config(runtime_config, TASK_PARAM_BUNDLES[task_type])
+    payload_key = get_payload_key(task_type)
+    config = deepcopy(runtime_config.get(payload_key, {}))
     handler = _get_workflow_handler(task_type)
     return handler(config)

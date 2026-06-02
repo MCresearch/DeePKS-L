@@ -6,7 +6,7 @@
 
 import time
 import numpy as np
-from deepks.physics.defaults import BOHR2ANG
+from deepks.physics.constants import BOHR2ANG
 from deepks.io.utils import load_yaml
 from deepks.physics.backends.pyscf.scf import DSCF
 from pyscf import gto, lib

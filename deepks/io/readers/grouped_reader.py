@@ -12,6 +12,7 @@ from deepks.io.readers.stats import (
     revert_elem_const,
     subtract_elem_const,
 )
+from deepks.io.task_batches import sample_to_task_batch
 from deepks.io.transforms.batch import concat_batch, split_batch
 
 
@@ -34,7 +35,7 @@ class GroupReader(object):
         if not self.readers:
             raise RuntimeError("No system is avaliable")
         self.nsystems = len(self.readers)
-        data_keys = self.readers[0].sample_all().keys()
+        data_keys = self.readers[0].get_display_fields()
         print(f"# load {self.nsystems} systems with fields {list(dict.fromkeys(data_keys))}")
         # probability of each system
         self.ndesc = self.readers[0].ndesc
@@ -54,8 +55,27 @@ class GroupReader(object):
             self._sample_used = 0
             raise StopIteration
         sample = self.sample_train() if self.group_batch == 1 else self.sample_train_group()
-        self._sample_used += sample["lb_e"].shape[0]
+        self._sample_used += self._infer_batch_size(sample)
         return sample
+
+    @staticmethod
+    def _infer_batch_size(sample):
+        if hasattr(sample, "model_inputs"):
+            for value in sample.model_inputs.values():
+                if hasattr(value, "shape"):
+                    return int(value.shape[0])
+            for value in sample.targets.values():
+                if hasattr(value, "shape"):
+                    return int(value.shape[0])
+                if isinstance(value, list) and value and hasattr(value[0], "shape"):
+                    return int(value[0].shape[0])
+        else:
+            for value in sample.values():
+                if hasattr(value, "shape"):
+                    return int(value.shape[0])
+                if isinstance(value, list) and value and hasattr(value[0], "shape"):
+                    return int(value[0].shape[0])
+        raise ValueError("Cannot infer batch size from sample")
 
     def _build_group_sampling_cache(self):
         """Cache grouped readers and sampling probabilities for grouped batches."""
@@ -83,6 +103,11 @@ class GroupReader(object):
             idx = self.sample_idx()
         return self.readers[idx].sample_train(index_list=index_list)
 
+    def sample_train_task_batch(self, idx=None, index_list=None):
+        if idx is None:
+            idx = self.sample_idx()
+        return self.readers[idx].sample_train_task_batch(index_list=index_list)
+
     def sample_train_group(self):
         """
         Sample a big batch from `group_batch` systems and `batch_size` frames from each system.
@@ -96,6 +121,9 @@ class GroupReader(object):
         batch = concat_batch([s.sample_train() for s in csys], dim=0)
         return batch
 
+    def sample_train_group_task_batch(self):
+        return sample_to_task_batch(self.sample_train_group())
+
     def sample_all(self, idx=None):
         """
         Sample all data from a specific system reader (idx).
@@ -105,6 +133,11 @@ class GroupReader(object):
         if idx is None:
             idx = self.sample_idx()
         return self.readers[idx].sample_all()
+
+    def sample_all_task_batch(self, idx=None):
+        if idx is None:
+            idx = self.sample_idx()
+        return self.readers[idx].sample_all_task_batch()
 
     def sample_all_batch(self, idx=None):
         """
@@ -118,6 +151,28 @@ class GroupReader(object):
         else:
             for i in range(self.nsystems):
                 yield from self.sample_all_batch(i)
+
+    def sample_all_task_batches(self, idx=None):
+        if idx is not None:
+            size = self.batch_size * self.group_batch
+            for batch in split_batch(self.readers[idx].sample_all(), size, dim=0):
+                yield sample_to_task_batch(batch)
+        else:
+            for i in range(self.nsystems):
+                yield from self.sample_all_task_batches(i)
+
+    def get_display_fields(self, idx=0):
+        return self.readers[idx].get_display_fields()
+
+    def iter_task_batches(self):
+        sample_used = 0
+        while sample_used <= self.get_train_size():
+            if self.group_batch == 1:
+                sample = self.sample_train_task_batch()
+            else:
+                sample = self.sample_train_group_task_batch()
+            sample_used += self._infer_batch_size(sample)
+            yield sample
 
     def get_train_size(self):
         return np.sum(self.nframes)

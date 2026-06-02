@@ -1,44 +1,24 @@
-"""SCF workflow - main orchestration.
+"""SCF workflow orchestration."""
 
-This module implements the SCF (Self-Consistent Field) workflow,
-which is backend-agnostic and follows the three-stage pattern.
-"""
-
-from .prepare import prepare_scf_tasks
-from .execute import execute_scf_tasks
-from .collect import collect_scf_results
+from deepks.physics.backends.abacus.workflow_ops import (
+    build_prepare_task,
+    collect_results,
+    execute_sequence,
+)
 
 
 def run_scf_workflow(config):
-    """Run SCF workflow.
+    """Run the SCF workflow for the configured backend."""
+    physics = config.get("physics") if isinstance(config.get("physics"), dict) else {}
+    backend = physics.get("backend") if isinstance(physics.get("backend"), dict) else {}
+    backend_name = str(backend.get("name", "pyscf")).lower()
 
-    This is the main entry point for SCF calculations. It orchestrates
-    the three stages: prepare, execute, and collect.
+    if backend_name == "abacus":
+        prepare_task = build_prepare_task(config)
+        execute_sequence(prepare_task, config)
+        return collect_results(config)
 
-    Physical Process:
-    1. Prepare: Create working directories and generate input files
-    2. Execute: Run SCF calculations via scheduler
-    3. Collect: Parse results and aggregate data
+    if backend_name == "pyscf":
+        raise NotImplementedError("PySCF workflow not yet implemented in new architecture")
 
-    Args:
-        config: Configuration dictionary containing:
-            - type: 'scf'
-            - scf_soft: Backend software ('pyscf' or 'abacus')
-            - systems: List of system paths
-            - dump_dir: Output directory for results
-            - dump_fields: Fields to dump (e.g., ['e_tot', 'dm_eig'])
-            - Backend-specific parameters (scf_abacus, mol_args, etc.)
-
-    Returns:
-        dict: Results dictionary with statistics and paths
-    """
-    # Stage 1: Prepare - Create directories and input files
-    tasks = prepare_scf_tasks(config)
-
-    # Stage 2: Execute - Run calculations
-    execute_scf_tasks(tasks, config)
-
-    # Stage 3: Collect - Parse and aggregate results
-    results = collect_scf_results(tasks, config)
-
-    return results
+    raise ValueError(f"Unknown SCF backend: {backend_name}")

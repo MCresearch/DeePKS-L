@@ -24,9 +24,9 @@ def _safe_remove(path: Path) -> None:
     path.unlink(missing_ok=True)
 
 
-def _cleanup_legacy_integral_full_artifacts() -> None:
-    """删除 legacy integral 样例在运行中产生的状态文件，避免历史状态污染。"""
-    root = Path(__file__).resolve().parent / "integration" / "scenarios" / "legacy_integral_full"
+def _cleanup_integral_full_artifacts() -> None:
+    """删除 integral_full 场景在运行中产生的状态文件，避免历史状态污染。"""
+    root = Path(__file__).resolve().parent / "integration" / "scenarios" / "integral_full"
     if not root.exists():
         return
 
@@ -72,14 +72,14 @@ def _fixed_seed():
 
 @pytest.fixture(autouse=True)
 def _preclean_generated_artifacts(request):
-    """仅在可能写入 legacy fixture 目录的测试中执行预清理。"""
+    """仅在可能写入 integral_full 场景目录的测试中执行预清理。"""
     node_path = Path(str(request.fspath)).as_posix()
     needs_cleanup = (
-        "tests/integration/scenarios/legacy_integral_full/" in node_path
+        "tests/integration/scenarios/integral_full/" in node_path
         or node_path.endswith("tests/integration/scenarios/test_migrated_integral_samples.py")
     )
     if needs_cleanup:
-        _cleanup_legacy_integral_full_artifacts()
+        _cleanup_integral_full_artifacts()
 
 
 def pytest_collection_modifyitems(config, items):

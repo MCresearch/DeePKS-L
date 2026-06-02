@@ -1,4 +1,6 @@
 """Evaluation components for DeepKS core ML layer."""
 
-from .evaluator import *  # noqa: F401,F403
-from .test import *  # noqa: F401,F403
+from .evaluator import Evaluator
+from .test import main, test
+
+__all__ = ["Evaluator", "main", "test"]

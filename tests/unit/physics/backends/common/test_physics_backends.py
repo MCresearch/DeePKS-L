@@ -13,14 +13,12 @@ def test_backend_imports():
         SCFBackend,
         get_backend,
         get_scf_backend,
-        get_physics_backend
     )
 
     assert PhysicsBackend is not None
     assert SCFBackend is not None
     assert callable(get_backend)
     assert callable(get_scf_backend)
-    assert callable(get_physics_backend)
 
 
 def test_abacus_backend_creation():
@@ -117,17 +115,9 @@ def test_get_scf_backend():
 
     backend = get_scf_backend('abacus')
     assert backend is not None
-    assert hasattr(backend, 'run_scf')
-    assert hasattr(backend, 'collect_stats')
-
-
-def test_get_physics_backend_backward_compat():
-    """Test backward compatibility function."""
-    from deepks.physics.backends import get_physics_backend
-
-    backend = get_physics_backend('abacus')
-    assert backend is not None
-    assert backend.backend_name == 'abacus'
+    assert hasattr(backend, 'prepare')
+    assert hasattr(backend, 'run')
+    assert hasattr(backend, 'collect')
 
 
 @pytest.mark.skip(reason="PySCF not in test_env")
@@ -138,17 +128,6 @@ def test_pyscf_backend_creation():
     backend = get_backend('pyscf')
     assert backend is not None
     assert backend.backend_name == 'pyscf'
-
-
-@pytest.mark.skip(reason="PySCF not in test_env")
-def test_pyscf_backend_not_implemented():
-    """Test PySCF backend raises NotImplementedError (skipped in test_env)."""
-    from deepks.physics.backends import get_backend
-
-    backend = get_backend('pyscf')
-
-    with pytest.raises(NotImplementedError):
-        backend.run_scf([])
 
 
 def test_abacus_backend_required_files():

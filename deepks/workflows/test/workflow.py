@@ -15,17 +15,9 @@ def run_test_workflow(config):
         config: Configuration dictionary containing current test runtime keys.
 
     Returns:
-        Any: Result returned by ``deepks.ml.eval.test.main``.
+        Any: Result returned by the current recipe-owned evaluation runner.
     """
-    from deepks.ml.eval.test import main as test_main
+    from deepks.interface.registry import get_recipe
 
-    data_paths = config.get('data_paths', config.get('systems_test'))
-    return test_main(
-        data_paths=data_paths,
-        model_file=config.get('model_file', 'model.pth'),
-        output_prefix=config.get('output_prefix', 'test'),
-        group=config.get('group', False),
-        e_name=config.get('e_name', 'l_e_delta'),
-        d_name=config.get('d_name', ['dm_eig']),
-        device=config.get('device', 'cpu'),
-    )
+    recipe = get_recipe(config=config)
+    return recipe.run_test_workflow(config)

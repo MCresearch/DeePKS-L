@@ -4,13 +4,13 @@ import sys
 import numpy as np
 import torch
 
-from deepks.ml.utils import cal_nb_overlap, make_integrator
 from deepks.io.schemas.reader_fields import (
     DEFAULT_READER_FIELD_NAMES,
     ReaderFieldNames,
     resolve_reader_paths,
 )
-from deepks.io.transforms.linalg import generalized_eigh
+from deepks.io.task_batches import sample_to_task_batch
+from .data_loading import build_reader_tensor_data, load_reader_raw_data
 
 
 class Reader(object):
@@ -43,8 +43,13 @@ class Reader(object):
         conv_name=DEFAULT_READER_FIELD_NAMES.conv_name,
         atom_name=DEFAULT_READER_FIELD_NAMES.atom_name,
         box_name=DEFAULT_READER_FIELD_NAMES.box_name,
+        iR_mat_name=DEFAULT_READER_FIELD_NAMES.iR_mat_name,
+        phialpha_r_name=DEFAULT_READER_FIELD_NAMES.phialpha_r_name,
         orb_list=None,
         alpha_list=None,
+        hamiltonian_level_names=None,
+        hamiltonian_name=None,
+        csr_hr_name=None,
         **kwargs,
     ):
         self.data_path = data_path
@@ -73,6 +78,8 @@ class Reader(object):
             conv_name=conv_name,
             atom_name=atom_name,
             box_name=box_name,
+            iR_mat_name=iR_mat_name,
+            phialpha_r_name=phialpha_r_name,
         )
         for path_name, path in resolve_reader_paths(self.data_path, field_names).items():
             setattr(self, path_name, path)
@@ -82,6 +89,9 @@ class Reader(object):
         self.eigh_method = eigh_method
         self.orb_list = ["../../" + orb for orb in orb_list] if orb_list is not None else None
         self.alpha_list = ["../../" + alpha for alpha in alpha_list] if alpha_list is not None else None
+        self.hamiltonian_level_names = list(hamiltonian_level_names) if hamiltonian_level_names else None
+        self.hamiltonian_name = hamiltonian_name
+        self.csr_hr_name = csr_hr_name
         # load data
         self.load_meta()
         self.prepare()
@@ -104,169 +114,59 @@ class Reader(object):
         self.ndesc = self.nproj
 
     def prepare(self):
-        ## Load energy and check nframes
-        data_ec = np.load(self.e_path).reshape(-1, 1)  # energy
-        raw_nframes = data_ec.shape[0]  # number of total frames
-        data_dm = np.load(self.d_path).reshape(raw_nframes, self.natm, self.ndesc)  # descriptor
-        # Use convergent structure only
-        if self.c_path is not None:
-            conv = np.load(self.c_path).reshape(raw_nframes)
-        else:
-            conv = np.ones(raw_nframes, dtype=bool)
-        self.data_ec = data_ec[conv]
-        self.data_dm = data_dm[conv]
-        self.nframes = conv.sum()
-        # reset batch size if nframes < batch_size
+        raw_data = load_reader_raw_data(
+            data_path=self.data_path,
+            e_path=self.e_path,
+            d_path=self.d_path,
+            c_path=self.c_path,
+            a_path=self.a_path,
+            b_path=self.b_path,
+            natm=self.natm,
+            ndesc=self.ndesc,
+        )
+        self.data_ec = raw_data["data_ec"]
+        self.data_dm = raw_data["data_dm"]
+        self.atom_info = raw_data["atom_info"]
+        self.nframes = raw_data["conv"].sum()
         if self.nframes < self.batch_size:
             self.batch_size = self.nframes
             print("#", self.data_path, f"reset batch size to {self.batch_size}", file=sys.stderr)
-
-        ## Handle atom and element data
-        self.atom_info = {}
-        if self.a_path is not None:
-            atoms = np.load(self.a_path).reshape(raw_nframes, self.natm, 4)  # atom.npy
-            self.atom_info["elems"] = atoms[:, :, 0][conv].round().astype(int)
-            self.atom_info["coords"] = atoms[:, :, 1:][conv]
-        if self.b_path is not None:
-            box = np.load(self.b_path).reshape(raw_nframes, 3, 3)
-            self.atom_info["lattice"] = box[conv]
-        # Energy and descriptor
-        # load data in torch
-        self.t_data = {}
-        # Energy
-        self.t_data["lb_e"] = torch.tensor(self.data_ec)
-        self.t_data["eig"] = torch.tensor(self.data_dm)
-        # Force
-        if self.f_path is not None and self.gvx_path is not None:
-            self.t_data["lb_f"] = torch.tensor(np.load(self.f_path).reshape(raw_nframes, -1, 3)[conv])
-            self.t_data["gvx"] = torch.tensor(
-                np.load(self.gvx_path).reshape(raw_nframes, self.natm, 3, self.natm, self.ndesc)[conv]
-            )
-        # Stress
-        if self.s_path is not None and self.gvepsl_path is not None:
-            self.t_data["lb_s"] = torch.tensor(np.load(self.s_path).reshape(raw_nframes, 6)[conv])
-            self.t_data["gvepsl"] = torch.tensor(
-                np.load(self.gvepsl_path).reshape(raw_nframes, 6, self.natm, self.ndesc)[conv]
-            )
-        # Orbital
-        if self.o_path is not None and self.op_path is not None:
-            self.t_data["lb_o"] = torch.tensor(np.load(self.o_path)[conv])
-            self.t_data["op"] = torch.tensor(np.load(self.op_path)[conv])
-        # Hamiltonian in k space
-        if self.h_path is not None and (
-            self.vdp_path is not None or (self.phialpha_path is not None and self.gevdm_path is not None)
-        ):
-            h_shape = np.load(self.h_path).shape
-            assert h_shape[-1] == h_shape[-2], (
-                "The last two dimension of H must have the same size , which is nlocal"
-            )
-            self.nlocal = h_shape[-1]
-            self.t_data["lb_vd"] = torch.tensor(
-                np.load(self.h_path).reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]
-            )  # -1 for nks
-
-            # for v_delta_precalc
-            if self.vdp_path is not None and (
-                self.phialpha_path is not None and self.gevdm_path is not None
-            ):  # both file exist, choose newer ones
-                if os.path.getmtime(self.vdp_path) >= os.path.getmtime(
-                    self.phialpha_path
-                ):  # phialpha and gevdm modified at the same time
-                    self.phialpha_path = None
-                    self.gevdm_path = None
-                else:
-                    self.vdp_path = None
-            if self.vdp_path is not None:
-                self.t_data["vdp"] = torch.tensor(
-                    np.load(self.vdp_path).reshape(
-                        raw_nframes, -1, self.nlocal, self.nlocal, self.natm, self.ndesc
-                    )[conv]
-                )
-            elif self.phialpha_path is not None and self.gevdm_path is not None:
-                phialpha = np.load(self.phialpha_path)
-                nl = phialpha.shape[2]
-                mmax = phialpha.shape[-1]
-                self.t_data["phialpha"] = torch.tensor(
-                    phialpha.reshape(raw_nframes, self.natm, nl, -1, self.nlocal, mmax)[conv]
-                )  # -1 for nks
-                self.t_data["gevdm"] = torch.tensor(
-                    np.load(self.gevdm_path).reshape(raw_nframes, self.natm, nl, mmax, mmax, mmax)[conv]
-                )
-
-            # for phi labels and band labels
-            if self.h_base_path is not None:
-                self.t_data["h_base"] = torch.tensor(
-                    np.load(self.h_base_path).reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv]
-                )  # -1 for nks
-            if self.h_ref_path is not None:
-                h_ref = torch.tensor(np.load(self.h_ref_path))
-                if self.read_overlap is True and self.overlap_path is not None:
-                    overlap = torch.tensor(np.load(self.overlap_path))
-                    self.t_data["overlap"]=overlap\
-                        .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()
-                    # When overlap matrix is ill-conditioned, the eigenvalues (i.e. band) can suffer from significant roundoff errors.
-                    if self.eigh_method == 1:
-                        L = torch.linalg.cholesky(overlap)
-                        trans_matrix = torch.linalg.inv(L).mT
-                    # Substitute cholesky with eigen decomposition.
-                    # This modification effectively reorders the entries of symm_h, placing larger values towards the upper left-hand corner, thereby enhancing the precision in computing smaller eigenvalues
-                    elif self.eigh_method == 2:
-                        overlap_eigenvalue, overlap_eigenvector = torch.linalg.eigh(overlap)
-                        # replace small eigenvalue with epsilon, avoid numerical instability
-                        epsilon = 1e-16
-                        overlap_eigenvalue = torch.clamp(overlap_eigenvalue, min=epsilon)
-                        sigma_inv_sqrt = torch.diag_embed(1.0 / torch.sqrt(overlap_eigenvalue))
-                        trans_matrix = overlap_eigenvector @ sigma_inv_sqrt
-                    self.t_data["trans_matrix"] = trans_matrix\
-                            .reshape(raw_nframes, -1, self.nlocal, self.nlocal)[conv].clone()  
-                    band_ref, phi_ref = generalized_eigh(h_ref,trans_matrix)    
-                else:
-                    band_ref, phi_ref = torch.linalg.eigh(h_ref, UPLO="U")  # U for upper triangle
-                self.t_data["lb_band"] = band_ref.reshape(raw_nframes, -1, self.nlocal)[conv].clone()
-                self.t_data["lb_phi"] = phi_ref.reshape(raw_nframes, -1, self.nlocal, self.nlocal)[
-                    conv
-                ].clone()
-        # Hamiltonian in R space
-        if self.hr_path is not None:
-            self.t_data["lb_vdr"] = torch.tensor(np.load(self.hr_path)[conv])
-            self.nlocal = self.t_data["lb_vdr"].shape[-1]
-            if self.vdrp_path is not None and self.gevdm_path is not None:  # both file exist, choose newer ones
-                if os.path.getmtime(self.vdrp_path) >= os.path.getmtime(
-                    self.gevdm_path
-                ):  # phialpha and gevdm modified at the same time
-                    self.gevdm_path = None
-                else:
-                    self.vdrp_path = None
-            if self.gevdm_path is not None:
-                gevdm = np.load(self.gevdm_path)
-                self.t_data["gevdm"] = torch.tensor(gevdm[conv])
-                if (
-                    self.orb_list is not None
-                    and self.alpha_list is not None
-                    and self.a_path is not None
-                    and self.b_path is not None
-                ):
-                    types = torch.tensor(self.atom_info["elems"])
-                    atoms = torch.tensor(self.atom_info["coords"])
-                    box = torch.tensor(self.atom_info["lattice"])
-                    orb, alpha, integrator = make_integrator(self.orb_list, self.alpha_list)
-                    self.t_data["overlap"], self.t_data["iR_mat"], self.t_data["data_shape"] = cal_nb_overlap(
-                        types, atoms, box, orb, alpha, integrator, self.nlocal
-                    )
-            elif self.vdrp_path is not None:
-                self.t_data["vdrp"] = torch.tensor(np.load(self.vdrp_path)[conv])
-        # Energy gradient
-        if self.eg_path is not None and self.gveg_path is not None:
-            self.t_data["eg0"] = torch.tensor(np.load(self.eg_path).reshape(raw_nframes, -1)[conv])
-            self.t_data["gveg"] = torch.tensor(
-                np.load(self.gveg_path).reshape(raw_nframes, self.natm, self.ndesc, -1)[conv]
-            )
-            self.neg = self.t_data["eg0"].shape[-1]
-        # Density
-        if self.gldv_path is not None:
-            self.t_data["gldv"] = torch.tensor(
-                np.load(self.gldv_path).reshape(raw_nframes, self.natm, self.ndesc)[conv]
-            )
+        self.t_data, extra = build_reader_tensor_data(
+            raw_data=raw_data,
+            natm=self.natm,
+            ndesc=self.ndesc,
+            f_path=self.f_path,
+            gvx_path=self.gvx_path,
+            s_path=self.s_path,
+            gvepsl_path=self.gvepsl_path,
+            o_path=self.o_path,
+            op_path=self.op_path,
+            h_path=self.h_path,
+            vdp_path=self.vdp_path,
+            phialpha_path=self.phialpha_path,
+            gevdm_path=self.gevdm_path,
+            h_base_path=self.h_base_path,
+            h_ref_path=self.h_ref_path,
+            read_overlap=self.read_overlap,
+            overlap_path=self.overlap_path,
+            eigh_method=self.eigh_method,
+            hr_path=self.hr_path,
+            vdrp_path=self.vdrp_path,
+            orb_list=self.orb_list,
+            alpha_list=self.alpha_list,
+            eg_path=self.eg_path,
+            gveg_path=self.gveg_path,
+            gldv_path=self.gldv_path,
+            iR_mat_path=self.iR_mat_path,
+            phialpha_r_path=self.phialpha_r_path,
+            hamiltonian_level_names=self.hamiltonian_level_names,
+            hamiltonian_name=self.hamiltonian_name,
+            csr_hr_name=self.csr_hr_name,
+        )
+        if "nlocal" in extra:
+            self.nlocal = extra["nlocal"]
+        if "neg" in extra:
+            self.neg = extra["neg"]
 
     def sample_train(self, index_list=None):
         """
@@ -294,6 +194,15 @@ class Reader(object):
 
     def sample_all(self):
         return self.t_data
+
+    def sample_train_task_batch(self, index_list=None):
+        return sample_to_task_batch(self.sample_train(index_list=index_list))
+
+    def sample_all_task_batch(self):
+        return sample_to_task_batch(self.sample_all())
+
+    def get_display_fields(self):
+        return self.sample_all_task_batch().display_keys()
 
     def get_train_size(self):
         return self.nframes

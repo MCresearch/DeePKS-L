@@ -68,5 +68,3 @@ def test_coulomb_penalty_init_and_defaults(tmp_path):
 	assert p.init_strength == 1.2
 	assert p.strength == 1.2
 	assert p.start_cycle == 5
-
-

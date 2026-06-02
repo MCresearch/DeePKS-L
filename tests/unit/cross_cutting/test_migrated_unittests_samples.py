@@ -1,13 +1,13 @@
 """
-整体覆盖：将历史 `tests/unittests` 的代表性样例迁移到新测试框架（不调用旧文件）。
+整体覆盖：将历史 `tests/unittests` 的代表性样例迁移到当前正式测试框架。
 
 测试列表：
 - `test_migrated_model_get_shell_sec_sample`
 - `test_migrated_simplereader_sample`
 - `test_migrated_model_reference_data_catalog`
 - `test_migrated_reader_reference_data_catalog`
-- `test_migrated_natomlosslist_sample`
-- `test_migrated_evaluator_legacy_sample`
+- `test_migrated_groupedlosstracker_sample`
+- `test_migrated_evaluator_sample`
 - `test_migrated_template_module_import_if_abacus`
 """
 
@@ -16,13 +16,13 @@ import importlib.util
 import numpy as np
 import pytest
 import torch
-
-from deepks.ml.eval.evaluator import Evaluator, NatomLossList
+from deepks.interface.objectives import build_descriptor_property_objective
 from deepks.io.readers import SimpleReader
+from deepks.ml.train import GroupedLossTracker
 from deepks.physics.backends.pyscf.basis import get_shell_sec
 
 
-LEGACY_MODEL_REFS = {
+MODEL_REFERENCE_DATA = {
     "trace": torch.tensor(
         [
             [-0.1368, -0.4975, 0.7234, -0.0998, 6.4928, -0.3836],
@@ -53,7 +53,7 @@ LEGACY_MODEL_REFS = {
     "corrnet_econst": torch.tensor([[-2.3466], [-5.4789], [-4.4017], [-3.0000]], dtype=torch.float64),
 }
 
-LEGACY_READER_REFS = {
+READER_REFERENCE_DATA = {
     "group_err_empty_1": "# ignore empty dataset: ./group1/",
     "group_err_empty_2": "# ignore empty dataset: ./group2/",
     "group_out_load": "# load 3 systems with fields ['lb_e', 'eig']",
@@ -143,18 +143,18 @@ def test_migrated_model_reference_data_catalog():
     依赖：历史 `test_model.py` 中的参考向量。
     测试内容：在新框架中完整保留旧模型参考数据，并校验其结构与关键值。
     """
-    assert LEGACY_MODEL_REFS["trace"].shape == (4, 6)
-    assert LEGACY_MODEL_REFS["thermal"].shape == (4, 6)
-    assert LEGACY_MODEL_REFS["densenet"].shape == (4, 5)
-    assert LEGACY_MODEL_REFS["corrnet_forward"].shape == (4, 1)
-    assert LEGACY_MODEL_REFS["corrnet_norm"].shape == (4, 1)
-    assert LEGACY_MODEL_REFS["corrnet_prefit"].shape == (4, 1)
-    assert LEGACY_MODEL_REFS["corrnet_econst"].shape == (4, 1)
+    assert MODEL_REFERENCE_DATA["trace"].shape == (4, 6)
+    assert MODEL_REFERENCE_DATA["thermal"].shape == (4, 6)
+    assert MODEL_REFERENCE_DATA["densenet"].shape == (4, 5)
+    assert MODEL_REFERENCE_DATA["corrnet_forward"].shape == (4, 1)
+    assert MODEL_REFERENCE_DATA["corrnet_norm"].shape == (4, 1)
+    assert MODEL_REFERENCE_DATA["corrnet_prefit"].shape == (4, 1)
+    assert MODEL_REFERENCE_DATA["corrnet_econst"].shape == (4, 1)
 
-    assert torch.isclose(LEGACY_MODEL_REFS["trace"][0, 0], torch.tensor(-0.1368), atol=1e-4)
-    assert torch.isclose(LEGACY_MODEL_REFS["thermal"][0, 2], torch.tensor(-2.5340), atol=1e-4)
-    assert torch.isclose(LEGACY_MODEL_REFS["densenet"][3, 3], torch.tensor(1.3167), atol=1e-4)
-    assert torch.isclose(LEGACY_MODEL_REFS["corrnet_forward"][2, 0], torch.tensor(-2.0623, dtype=torch.float64), atol=1e-4)
+    assert torch.isclose(MODEL_REFERENCE_DATA["trace"][0, 0], torch.tensor(-0.1368), atol=1e-4)
+    assert torch.isclose(MODEL_REFERENCE_DATA["thermal"][0, 2], torch.tensor(-2.5340), atol=1e-4)
+    assert torch.isclose(MODEL_REFERENCE_DATA["densenet"][3, 3], torch.tensor(1.3167), atol=1e-4)
+    assert torch.isclose(MODEL_REFERENCE_DATA["corrnet_forward"][2, 0], torch.tensor(-2.0623, dtype=torch.float64), atol=1e-4)
 
 
 def test_migrated_reader_reference_data_catalog():
@@ -162,32 +162,32 @@ def test_migrated_reader_reference_data_catalog():
     依赖：历史 `test_reader.py` 中的参考常量与统计值。
     测试内容：在新框架中完整保留旧 reader/group reader 参考数据并校验关键字段。
     """
-    assert LEGACY_READER_REFS["group_err_empty_1"] == "# ignore empty dataset: ./group1/"
-    assert LEGACY_READER_REFS["group_err_empty_2"] == "# ignore empty dataset: ./group2/"
-    assert LEGACY_READER_REFS["group_out_load"] == "# load 3 systems with fields ['lb_e', 'eig']"
-    assert LEGACY_READER_REFS["group_err_reset_2"] == "# ./group2/ reset batch size to 2"
-    assert LEGACY_READER_REFS["group_err_reset_3"] == "# ./group3/ reset batch size to 1"
+    assert READER_REFERENCE_DATA["group_err_empty_1"] == "# ignore empty dataset: ./group1/"
+    assert READER_REFERENCE_DATA["group_err_empty_2"] == "# ignore empty dataset: ./group2/"
+    assert READER_REFERENCE_DATA["group_out_load"] == "# load 3 systems with fields ['lb_e', 'eig']"
+    assert READER_REFERENCE_DATA["group_err_reset_2"] == "# ./group2/ reset batch size to 2"
+    assert READER_REFERENCE_DATA["group_err_reset_3"] == "# ./group3/ reset batch size to 1"
 
-    assert LEGACY_READER_REFS["nelem_ref"].shape == (3, 9)
-    assert LEGACY_READER_REFS["elem_list_reader"] == [6, 30, 35, 40, 43, 50, 56, 76, 79]
+    assert READER_REFERENCE_DATA["nelem_ref"].shape == (3, 9)
+    assert READER_REFERENCE_DATA["elem_list_reader"] == [6, 30, 35, 40, 43, 50, 56, 76, 79]
 
-    assert np.allclose(LEGACY_READER_REFS["all_mean"], np.array([-0.18484446, -0.07506522, 0.27285756, -0.19529272]), atol=1e-8)
-    assert np.allclose(LEGACY_READER_REFS["all_std"], np.array([0.56544117, 1.20177998, 1.03995579, 0.89537965]), atol=1e-8)
-    assert np.allclose(LEGACY_READER_REFS["prefit_weight"], np.array([-0.0053749, 0.11951934, 0.815563, 0.13809183]), atol=1e-8)
-    assert np.isclose(LEGACY_READER_REFS["prefit_bias"], -0.028533653429280666, atol=1e-8)
+    assert np.allclose(READER_REFERENCE_DATA["all_mean"], np.array([-0.18484446, -0.07506522, 0.27285756, -0.19529272]), atol=1e-8)
+    assert np.allclose(READER_REFERENCE_DATA["all_std"], np.array([0.56544117, 1.20177998, 1.03995579, 0.89537965]), atol=1e-8)
+    assert np.allclose(READER_REFERENCE_DATA["prefit_weight"], np.array([-0.0053749, 0.11951934, 0.815563, 0.13809183]), atol=1e-8)
+    assert np.isclose(READER_REFERENCE_DATA["prefit_bias"], -0.028533653429280666, atol=1e-8)
 
-    assert LEGACY_READER_REFS["group_elem_list"].shape == (15,)
-    assert LEGACY_READER_REFS["group_elem_const"].shape == (15,)
-    assert np.isclose(LEGACY_READER_REFS["group_elem_const"][0], 0.19558913, atol=1e-8)
-    assert np.isclose(LEGACY_READER_REFS["group_elem_const"][-1], 0.55784453, atol=1e-8)
+    assert READER_REFERENCE_DATA["group_elem_list"].shape == (15,)
+    assert READER_REFERENCE_DATA["group_elem_const"].shape == (15,)
+    assert np.isclose(READER_REFERENCE_DATA["group_elem_const"][0], 0.19558913, atol=1e-8)
+    assert np.isclose(READER_REFERENCE_DATA["group_elem_const"][-1], 0.55784453, atol=1e-8)
 
 
-def test_migrated_natomlosslist_sample(capsys):
+def test_migrated_groupedlosstracker_sample(capsys):
     """
-    依赖：`deepks.ml.eval.evaluator.NatomLossList`。
-    测试内容：迁移历史 `test_NatomLossList` 样例与参考数据，验证分 natom 聚合、均值统计及异常分支。
+    依赖：`deepks.ml.train.GroupedLossTracker`。
+    测试内容：迁移历史 grouped-loss 聚合样例，验证分组聚合、均值统计及异常分支。
     """
-    nll = NatomLossList()
+    tracker = GroupedLossTracker()
 
     # 历史样例中的参考数据（原 tests/unittests/test_evaluator.py）
     loss_a = [
@@ -206,18 +206,18 @@ def test_migrated_natomlosslist_sample(capsys):
         torch.tensor(2.9542760848999023),
     ]
 
-    nll.add_loss(5, loss_a)
-    nll.add_loss(5, loss_b)
-    nll.add_loss(1, loss_c)
+    tracker.add_loss(5, loss_a)
+    tracker.add_loss(5, loss_b)
+    tracker.add_loss(1, loss_c)
 
     with pytest.raises(AssertionError, match="loss should not be empty"):
-        nll.add_loss(6, [])
-    with pytest.raises(AssertionError, match="loss length are different"):
-        nll.add_loss(7, [torch.tensor(1.0), torch.tensor(2.0)])
+        tracker.add_loss(6, [])
+    with pytest.raises(AssertionError, match="loss length differs"):
+        tracker.add_loss(7, [torch.tensor(1.0), torch.tensor(2.0)])
 
-    assert nll.n_loss_term == 3
-    assert nll.natoms() == [1, 5]
-    assert nll.natom_loss_list == {
+    assert tracker.n_loss_term == 3
+    assert tracker.group_keys() == [1, 5]
+    assert tracker.grouped_losses == {
         5: [
             [-0.9622731804847717, 0.635839581489563, 0.042841192334890366],
             [-0.11838816851377487, 0.3066321909427643, 0.15965326130390167],
@@ -225,19 +225,19 @@ def test_migrated_natomlosslist_sample(capsys):
         1: [[-1.656829595565796, 0.1093858852982521, 2.9542760848999023]],
     }
 
-    avg_atom = nll.avg_atom_loss()
-    assert np.allclose(avg_atom[5], np.array([-0.54033067, 0.47123589, 0.10124723]), atol=1e-4)
-    assert np.allclose(avg_atom[1], np.array([-1.6568296, 0.10938589, 2.95427608]), atol=1e-4)
-    assert np.allclose(nll.avg_loss(), np.array([-0.91249698, 0.35061922, 1.05225685]), atol=1e-4)
+    avg_group = tracker.avg_group_loss()
+    assert np.allclose(avg_group[5], np.array([-0.54033067, 0.47123589, 0.10124723]), atol=1e-4)
+    assert np.allclose(avg_group[1], np.array([-1.6568296, 0.10938589, 2.95427608]), atol=1e-4)
+    assert np.allclose(tracker.avg_loss(), np.array([-0.91249698, 0.35061922, 1.05225685]), atol=1e-4)
 
-    nll.print_avg_atom_loss()
+    tracker.print_avg_group_loss()
     line = capsys.readouterr().out.strip().split()
     assert line[-4:] == ["-1.6568e+00", "1.0939e-01", "-5.4033e-01", "4.7124e-01"]
 
 
-def test_migrated_evaluator_legacy_sample(capsys):
+def test_migrated_evaluator_sample(capsys):
     """
-    依赖：`deepks.ml.eval.evaluator.Evaluator`。
+    依赖：`deepks.interface.objectives.DescriptorPropertyObjectiveAdapter`。
     测试内容：迁移历史 `test_Evaluator` 的字段、参数和参考向量定义，验证损失项数量与表头输出。
     """
 
@@ -252,6 +252,22 @@ def test_migrated_evaluator_legacy_sample(capsys):
         def forward(self, x):
             x = x.view(x.size(0), -1)
             return self.fc(x)
+
+        def forward_with_derivatives(self, model_inputs, derivative_spec=None):
+            model_input = model_inputs.requires_grad_(bool(derivative_spec and derivative_spec.get("input")))
+            prediction = self(model_input)
+            derivatives = {"input": None}
+            if derivative_spec and derivative_spec.get("input"):
+                [input_grad] = torch.autograd.grad(
+                    prediction,
+                    model_input,
+                    grad_outputs=torch.ones_like(prediction),
+                    retain_graph=True,
+                    create_graph=True,
+                    only_inputs=True,
+                )
+                derivatives["input"] = input_grad
+            return {"primary_output": prediction}, derivatives
 
     torch.manual_seed(20260313)
     batch_size = 2
@@ -272,40 +288,43 @@ def test_migrated_evaluator_legacy_sample(capsys):
         "lb_phi": torch.randn(batch_size, nks, nlocal, nlocal),
         "lb_band": torch.randn(batch_size, nks, nlocal),
         "h_base": torch.randn(batch_size, nks, nlocal, nlocal),
-        "L_inv": torch.randn(batch_size, nks, nlocal, nlocal),
+        "trans_matrix": torch.randn(batch_size, nks, nlocal, nlocal),
         "gldv": torch.randn(batch_size, natom, ndesc),
     }
-    evaluator = Evaluator(
-        energy_factor=1.0,
-        energy_lossfn=loss_fn,
-        force_factor=1.0,
-        force_lossfn=loss_fn,
-        stress_factor=1.0,
-        stress_lossfn=loss_fn,
-        orbital_factor=1.0,
-        orbital_lossfn=loss_fn,
-        v_delta_factor=1.0,
-        v_delta_lossfn=loss_fn,
-        phi_factor=1.0,
-        phi_occ={natom: 4},
-        phi_lossfn=loss_fn,
-        band_factor=1.0,
-        band_occ={natom: 5},
-        band_lossfn=loss_fn,
-        density_m_factor=1.0,
-        density_m_occ={natom: 6},
-        density_m_lossfn=loss_fn,
-        density_factor=1.0,
-        grad_penalty=1.0,
-        energy_per_atom=0,
-        vd_divide_by_nlocal=True,
+    objective = build_descriptor_property_objective(
+        {
+            "energy_factor": 1.0,
+            "energy_lossfn": loss_fn,
+            "force_factor": 1.0,
+            "force_lossfn": loss_fn,
+            "stress_factor": 1.0,
+            "stress_lossfn": loss_fn,
+            "orbital_factor": 1.0,
+            "orbital_lossfn": loss_fn,
+            "v_delta_factor": 1.0,
+            "v_delta_lossfn": loss_fn,
+            "phi_factor": 1.0,
+            "phi_occ": {natom: 4},
+            "phi_lossfn": loss_fn,
+            "band_factor": 1.0,
+            "band_occ": {natom: 5},
+            "band_lossfn": loss_fn,
+            "density_m_factor": 1.0,
+            "density_m_occ": {natom: 6},
+            "density_m_lossfn": loss_fn,
+            "density_factor": 1.0,
+            "grad_penalty": 1.0,
+            "energy_per_atom": 0,
+            "vd_divide_by_nlocal": True,
+        },
+        property_scheme="energy_descriptor",
     )
     model = SimpleModel(input_dim=natom * ndesc, output_dim=1)
-    loss_list = evaluator(model, sample)
-    loss = torch.tensor(loss_list)
+    loss_list = objective.compute_losses(model, sample)
+    loss = torch.stack([item.detach() for item in loss_list])
 
     # 历史样例中的参考向量（用于迁移可追溯性）
-    legacy_ref = torch.tensor(
+    reference_loss = torch.tensor(
         [
             9.7316e-02,
             7.2783e-01,
@@ -321,18 +340,18 @@ def test_migrated_evaluator_legacy_sample(capsys):
         ]
     )
     assert len(loss_list) == 11
-    assert legacy_ref.shape == loss.shape
+    assert reference_loss.shape == loss.shape
     assert torch.isfinite(loss).all()
 
     data_keys = ["eg0", "lb_f", "lb_s", "lb_o", "lb_vd", "lb_phi", "lb_band", "gldv"]
-    evaluator.print_head("test", data_keys)
+    objective.print_head("test", data_keys)
     line = capsys.readouterr().out.strip().split()
     assert line[-10:] == [
         "test_energy",
         "test_grad",
         "test_force",
         "test_stress",
-        "test_bandgap",
+        "test_orbital",
         "test_v_delta",
         "test_phi",
         "test_band",

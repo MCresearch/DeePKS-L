@@ -4,12 +4,11 @@ This module implements the training workflow for DeePKS models.
 It follows a three-stage pattern but delegates to existing training code.
 """
 
-from .prepare import prepare_train_data
-from .train import train_model
-from .evaluate import evaluate_model
-from .types import TrainResult
 from dataclasses import asdict
-from contextlib import redirect_stdout
+
+from deepks.interface.registry import get_recipe
+from deepks.workflows.train.runtime import prepare_train_runtime, run_training_stage
+from .types import TrainResult
 
 
 def run_train_workflow(config):
@@ -43,31 +42,32 @@ def run_train_workflow(config):
         dict: Training results with model path and statistics
     """
     # Stage 1: Prepare - Load and prepare data
-    train_data, test_data, model_config = prepare_train_data(config)
+    train_data, test_data, model_config = prepare_train_runtime(config)
 
     # Stage 2: Train - Train the model
-    model, train_stats = train_model(train_data, test_data, model_config)
+    model, train_stats = run_training_stage(train_data, test_data, model_config)
 
     # Stage 3: Evaluate - Evaluate model performance and write log.test
-    metrics = evaluate_model(model, test_data, config)
+    recipe = get_recipe(config=config)
+    metrics = recipe.evaluate_model(model, test_data, config)
 
-    # Reproduce legacy log.test: run test() with stdout redirected
-    ckpt_file = config.get('ckpt_file', 'model.pth')
-    test_log = config.get('test_log', 'log.test')
+    # Write the workflow log.test file by running evaluation with stdout redirected
+    runtime = config.get("runtime") if isinstance(config.get("runtime"), dict) else {}
+    runtime_io = runtime.get("io") if isinstance(runtime.get("io"), dict) else {}
+    ckpt_file = runtime_io.get("ckpt_file", "model.pth")
+    test_log = runtime.get("test_log", "log.test")
     if test_data is not None:
-        from deepks.ml.eval.test import test as run_test
-        run_device = config.get('device', 'cpu')
-        model = model.to(run_device)
-        # Reconstruct the header line that GroupReader prints at construction time
-        data_keys = list(dict.fromkeys(test_data.readers[0].sample_all().keys()))
-        header_line = f'# load {test_data.nsystems} systems with fields {data_keys}'
-        with open(test_log, 'w', 1) as f_test, redirect_stdout(f_test):
-            print(header_line)
-            print(ckpt_file)
-            run_test(model, test_data, dump_prefix=None, device=run_device)
+        run_device = runtime.get("device", "cpu")
+        recipe.write_test_log(
+            model,
+            test_data,
+            ckpt_file=ckpt_file,
+            test_log=test_log,
+            device=run_device,
+        )
 
     result = TrainResult(
-        model_path=config.get('ckpt_file', 'model.pth'),
+        model_path=ckpt_file,
         metrics=metrics,
         train_stats=train_stats,
     )

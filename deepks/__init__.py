@@ -6,13 +6,13 @@ except ImportError:
     __version__ = 'unknown'
 
 __all__ = [
-    "cli",
-    "compat",
-    "core",
+    "interface",
     "io",
+    "ml",
     "orchestration",
-    "pipelines",
+    "physics",
     "tools",
+    "workflows",
 ]
 
 def __getattr__(name):

@@ -10,11 +10,10 @@ def test_train_pipeline_exports():
 
 
 def test_core_ml_exports():
-    evaluator_mod = importlib.import_module("deepks.ml.eval.evaluator")
+    objective_mod = importlib.import_module("deepks.interface.objectives.descriptor_properties")
     model_mod = importlib.import_module("deepks.ml.models.corrnet")
     utils_mod = importlib.import_module("deepks.ml.utils")
 
-    assert evaluator_mod.Evaluator.__module__ == "deepks.ml.eval.evaluator"
+    assert objective_mod.DescriptorPropertyObjectiveAdapter.__module__ == "deepks.interface.objectives.descriptor_properties"
     assert model_mod.CorrNet.__module__ == "deepks.ml.models.corrnet"
-    assert utils_mod.fit_elem_const.__module__ == "deepks.ml.utils"
-    assert utils_mod.preprocess.__module__ == "deepks.ml.utils"
+    assert utils_mod.make_loss.__module__ == "deepks.ml.utils"

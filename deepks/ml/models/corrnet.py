@@ -4,10 +4,56 @@ import numpy as np
 import torch
 import torch.nn as nn 
 from torch.nn import functional as F
-from deepks.physics.backends.pyscf.basis import load_basis, get_shell_sec
-from deepks.io.utils import load_elem_table, save_elem_table
+from deepks.io.checkpoints import load_compiled_or_checkpoint, save_model_checkpoint
+from deepks.ml.base import ModelAdapter
 
 SCALE_EPS = 1e-8 # avoid zero division
+
+
+def _extract_descriptor_tensor(model_inputs):
+    """Coerce a model_inputs payload to the descriptor tensor.
+
+    Accepts:
+      * a tensor (returned as-is — the legacy / TorchScript-trace path);
+      * a dict containing exactly one of ``"descriptor"`` or ``"input"``.
+
+    The dual support lets the same model body serve the unified dict-in
+    objective adapter and the SCF jit-trace call sites without churn.
+    """
+
+    if isinstance(model_inputs, dict):
+        for key in ("descriptor", "input"):
+            if key in model_inputs:
+                return model_inputs[key]
+        raise KeyError(
+            "model_inputs must contain 'descriptor' or 'input'; got keys "
+            f"{tuple(model_inputs)}"
+        )
+    return model_inputs
+
+
+class _DescriptorEnergyTraceWrapper(nn.Module):
+    """Trace-friendly wrapper that composes a descriptor-energy model with
+    the standard sum-over-atoms reducer + ``output_bias``.
+
+    Holds the wrapped model as a submodule so that ``torch.jit.trace``
+    recognizes the model's ``nn.Parameter`` tensors as graph parameters
+    (rather than external closure captures, which JIT would otherwise try
+    to bake in as constants and reject when any parameter has
+    ``requires_grad=True``). This wrapper is what each descriptor-energy
+    model's ``compile`` / ``compile_save`` traces, so the saved
+    TorchScript module keeps the legacy "scalar correction energy"
+    contract the SCF backends expect — even when the model was just left
+    in a trainable state by the recipe (e.g. ``configure_stage_trainability``
+    intentionally leaves the active level's parameters trainable).
+    """
+
+    def __init__(self, inner):
+        super().__init__()
+        self.inner = inner
+
+    def forward(self, x):
+        return self.inner.forward(x).sum(-2) + self.inner.output_bias
 
 def parse_actv_fn(code):
     if callable(code):
@@ -31,7 +77,7 @@ def parse_actv_fn(code):
     raise ValueError(f'{code} is not a valid activation function')
 
 
-def make_embedder(type, shell_sec, **kwargs):
+def make_embedder(type, input_partition, **kwargs):
     ltype = type.lower()
     if ltype in ("trace", "sum"):
         EmbdCls = TraceEmbedding
@@ -39,7 +85,7 @@ def make_embedder(type, shell_sec, **kwargs):
         EmbdCls = ThermalEmbedding
     else:
         raise ValueError(f'{type} is not a valid embedding type')
-    embedder = EmbdCls(shell_sec, **kwargs)
+    embedder = EmbdCls(input_partition, **kwargs)
     return embedder
 
 
@@ -58,13 +104,12 @@ def log_args(name):
     return decorator
 
 
-def make_shell_mask(shell_sec):
+def make_partition_mask(input_partition):
     '''
-        shell_sec: list of integers, each integer is the number of basis functions in this shell
-                   e.g. [1, 1, 3, 3, 5, 5] for [s, s, p, p, d, d] shells
-        mask: a 2D boolean tensor, shape [nl, mmax], where nl is the number of shells
-              and mmax is the maximum number of basis functions in shells.
-              e.g. for [s, s, p, p, d, d] shells, mask will be:
+        input_partition: list of integers describing grouped input widths.
+        mask: a 2D boolean tensor, shape [nl, mmax], where nl is the number of groups
+              and mmax is the maximum width among groups.
+              e.g. for [1, 1, 3, 3, 5, 5], mask will be:
               [[1, 0, 0, 0, 0],
                [1, 0, 0, 0, 0],
                [1, 1, 1, 0, 0],
@@ -72,10 +117,10 @@ def make_shell_mask(shell_sec):
                [1, 1, 1, 1, 1],
                [1, 1, 1, 1, 1]]
     '''
-    lsize = len(shell_sec)
-    msize = max(shell_sec)
+    lsize = len(input_partition)
+    msize = max(input_partition)
     mask = torch.zeros(lsize, msize, dtype=bool)
-    for l, m in enumerate(shell_sec):
+    for l, m in enumerate(input_partition):
         mask[l, :m] = 1
     return mask
 
@@ -155,51 +200,51 @@ class DenseNet(nn.Module):
 
 class TraceEmbedding(nn.Module):
 
-    def __init__(self, shell_sec):
+    def __init__(self, input_partition):
         super().__init__()
-        self.shell_sec = shell_sec
-        self.ndesc = len(shell_sec)
+        self.input_partition = input_partition
+        self.ndesc = len(input_partition)
     
     def forward(self, x):
-        x_shells = x.split(self.shell_sec, dim=-1)
-        tr_shells = [sx.sum(-1, keepdim=True) for sx in x_shells]
-        return torch.cat(tr_shells, dim=-1)
+        x_groups = x.split(self.input_partition, dim=-1)
+        reduced_groups = [sx.sum(-1, keepdim=True) for sx in x_groups]
+        return torch.cat(reduced_groups, dim=-1)
     
 
 class ThermalEmbedding(nn.Module):
 
-    def __init__(self, shell_sec, embd_sizes=None, init_beta=5., 
+    def __init__(self, input_partition, embd_sizes=None, init_beta=5., 
                  momentum=None, max_memory=1000):
         super().__init__()
-        self.shell_sec = shell_sec
-        self.register_buffer("shell_mask", make_shell_mask(shell_sec), False)# shape: [l, m]
+        self.input_partition = input_partition
+        self.register_buffer("input_mask", make_partition_mask(input_partition), False)
         if embd_sizes is None:
-            embd_sizes = shell_sec
+            embd_sizes = input_partition
         if isinstance(embd_sizes, int):
-            embd_sizes = [embd_sizes] * len(shell_sec)
-        assert len(embd_sizes) == len(shell_sec)
+            embd_sizes = [embd_sizes] * len(input_partition)
+        assert len(embd_sizes) == len(input_partition)
         self.embd_sizes = embd_sizes
-        self.register_buffer("embd_mask", make_shell_mask(embd_sizes), False)
+        self.register_buffer("embd_mask", make_partition_mask(embd_sizes), False)
         self.ndesc = sum(embd_sizes)
         self.beta = nn.Parameter( # shape: [l, p], padded
             pad_lastdim([torch.linspace(init_beta, -init_beta, ne) 
                             for ne in embd_sizes]))
         self.momentum = momentum
         self.max_memory = max_memory
-        self.register_buffer('running_mean', torch.zeros(len(shell_sec)))
-        self.register_buffer('running_var', torch.ones(len(shell_sec)))
+        self.register_buffer('running_mean', torch.zeros(len(input_partition)))
+        self.register_buffer('running_var', torch.ones(len(input_partition)))
         self.register_buffer('num_batches_tracked', torch.tensor(0, dtype=torch.long))
 
     def forward(self, x):
-        x_padded = pad_masked(x, self.shell_mask, 0.) # shape: [n, a, l, m]
+        x_padded = pad_masked(x, self.input_mask, 0.)
         if self.training:
             self.update_running_stats(x_padded)
         nx_padded = ((x_padded - self.running_mean.unsqueeze(-1)) 
                     / (self.running_var.sqrt().unsqueeze(-1) + SCALE_EPS)
-                    * self.shell_mask.to(x_padded))
+                    * self.input_mask.to(x_padded))
         weight = masked_softmax(
             torch.einsum("...lm,lp->...lmp", nx_padded, -self.beta),
-            self.shell_mask.unsqueeze(-1), dim=-2)
+            self.input_mask.unsqueeze(-1), dim=-2)
         desc_padded = torch.einsum("...m,...mp->...p", x_padded, weight)
         return unpad_masked(desc_padded, self.embd_mask)
 
@@ -211,7 +256,7 @@ class ThermalEmbedding(nn.Module):
         if self.momentum is not None:
             exp_factor = max(exp_factor, self.momentum)
         with torch.no_grad():
-            fmask = self.shell_mask.to(x_padded)
+            fmask = self.input_mask.to(x_padded)
             pad_portion = fmask.mean(-1)
             x_masked = x_padded * fmask # make sure padded part is zero
             reduced_dim = (*range(x_masked.ndim-2), -1)
@@ -226,29 +271,24 @@ class ThermalEmbedding(nn.Module):
         self.num_batches_tracked.zero_()
 
 
-class CorrNet(nn.Module):
+class CorrNet(nn.Module, ModelAdapter):
+
+    MODEL_FAMILY = "corrnet"
 
     @log_args('_init_args')
-    def __init__(self, input_dim, hidden_sizes=(100,100,100), 
+    def __init__(self, input_dim, hidden_sizes=(100,100,100),
                  actv_fn='gelu', use_resnet=True, layer_norm=False,
-                 embedding=None, proj_basis=None, elem_table=None,
+                 embedding=None, input_partition=None,
                  input_shift=0, input_scale=1, output_scale=1):
         super().__init__()
         actv_fn = parse_actv_fn(actv_fn)
         self.input_dim = input_dim
-        # basis info
-        self._pbas = load_basis(proj_basis)
-        self._init_args["proj_basis"] = self._pbas
-        self.shell_sec = None
-        # elem const
-        if isinstance(elem_table, str):
-            elem_table = load_elem_table(elem_table)
-            self._init_args["elem_table"] = elem_table
-        self.elem_table = elem_table
-        self.elem_dict = None if elem_table is None else dict(zip(*elem_table))
+        # input layout info
+        self.input_partition = list(input_partition) if input_partition is not None else None
+        if self.input_partition is not None:
+            self._init_args["input_partition"] = list(self.input_partition)
         # linear fitting
         self.linear = nn.Linear(input_dim, 1).double()
-        self.elem_table=elem_table
         # embedding net
         ndesc = input_dim
         self.embedder = None
@@ -256,10 +296,12 @@ class CorrNet(nn.Module):
             if isinstance(embedding, str):
                 embedding = {"type": embedding}
             assert isinstance(embedding, dict)
-            raw_shell_sec = get_shell_sec(self._pbas)
-            self.shell_sec = raw_shell_sec * (input_dim // sum(raw_shell_sec))
-            assert sum(self.shell_sec) == input_dim
-            self.embedder = make_embedder(**embedding, shell_sec=self.shell_sec).double()
+            if self.input_partition is None:
+                raise ValueError("embedding requires `input_partition`; resolve layout before model construction")
+            raw_partition = list(self.input_partition)
+            self.input_partition = raw_partition * (input_dim // sum(raw_partition))
+            assert sum(self.input_partition) == input_dim
+            self.embedder = make_embedder(**embedding, input_partition=self.input_partition).double()
             self.linear.requires_grad_(False) # make sure it is symmetric
             ndesc = self.embedder.ndesc
         # fitting net
@@ -279,25 +321,29 @@ class CorrNet(nn.Module):
         self.output_scale = nn.Parameter(
             torch.tensor(output_scale, dtype=torch.float64), 
             requires_grad=False)
-        self.energy_const = nn.Parameter(
+        self.output_bias = nn.Parameter(
             torch.tensor(0, dtype=torch.float64), 
             requires_grad=False)
     
-    def forward(self, x):
-        # x: nframes x natom x nfeature
+    def forward(self, model_inputs):
+        """Return the unreduced per-atom contribution.
+
+        Accepts a tensor (legacy / TorchScript trace path) or a dict
+        ``{"descriptor": tensor}`` / ``{"input": tensor}`` (new). The
+        returned tensor has shape ``(batch, natom, 1)``; the extensive
+        sum-over-atoms reduction and the additive ``output_bias`` are
+        applied by the interface-layer reducer (see
+        ``deepks.interface.reducers.SumOverAtoms``).
+        """
+
+        x = _extract_descriptor_tensor(model_inputs)
         x = (x - self.input_shift) / (self.input_scale + SCALE_EPS)
         l = self.linear(x)
         if self.embedder is not None:
             x = self.embedder(x)
         y = self.densenet(x)
         y = y / self.output_scale + l
-        e = y.sum(-2) + self.energy_const
-        return e
-    
-    def get_elem_const(self, elems):
-        if self.elem_dict is None:
-            return 0.
-        return sum(self.elem_dict[ee] for ee in elems)
+        return y
 
     def set_normalization(self, shift=None, scale=None):
         dtype = self.input_scale.dtype
@@ -312,12 +358,13 @@ class CorrNet(nn.Module):
         self.linear.bias.data[:] = torch.tensor(bias, dtype=dtype).reshape(-1)
         self.linear.requires_grad_(trainable)
 
-    def set_energy_const(self, const):
-        dtype = self.energy_const.dtype
-        self.energy_const.data = torch.tensor(const, dtype=dtype).reshape([])
+    def set_output_bias(self, const):
+        dtype = self.output_bias.dtype
+        self.output_bias.data = torch.tensor(const, dtype=dtype).reshape([])
 
     def save_dict(self, **extra_info):
         dump_dict = {
+            "model_family": self.MODEL_FAMILY,
             "state_dict": self.state_dict(),
             "init_args": self._init_args,
             "extra_info": extra_info
@@ -325,39 +372,47 @@ class CorrNet(nn.Module):
         return dump_dict
 
     def save(self, filename, **extra_info):
-        torch.save(self.save_dict(**extra_info), filename)
+        save_model_checkpoint(filename, self.save_dict(**extra_info))
 
     def compile(self, set_eval=True, **kwargs):
         old_mode = self.training
         if set_eval:
             self.eval()
+        # R1 + trace-compat: trace an nn.Module wrapper (not a closure) so
+        # that the inner model's nn.Parameter tensors are registered as
+        # graph parameters of the traced module rather than external
+        # closure captures. Closure captures with requires_grad=True (as
+        # happens after a training stage leaves parameters trainable) cause
+        # ``torch.jit.trace`` to raise "Cannot insert a Tensor that requires
+        # grad as a constant".
+        wrapper = _DescriptorEnergyTraceWrapper(self).eval()
         smodel = torch.jit.trace(
-            self.forward, 
-            torch.empty((2, 2, self.input_dim)), # example input, the input should be 2D (first dim is batch size)
-            **kwargs)
+            wrapper,
+            torch.empty((2, 2, self.input_dim)),
+            **kwargs,
+        )
         self.train(old_mode)
         return smodel
 
     def compile_save(self, filename, **kwargs):
         torch.jit.save(self.compile(**kwargs), filename)
-        if self.elem_table is not None:
-            save_elem_table(filename+".elemtab", self.elem_table)
     
     @staticmethod
     def load_dict(checkpoint, strict=False):
-        init_args = checkpoint["init_args"]
+        init_args = dict(checkpoint["init_args"])
         if "layer_sizes" in init_args:
             layers = init_args.pop("layer_sizes")
             init_args["input_dim"] = layers[0]
             init_args["hidden_sizes"] = layers[1:-1]
+        if init_args.get("input_partition") is not None:
+            init_args["input_partition"] = list(init_args["input_partition"])
         model = CorrNet(**init_args)
-        model.load_state_dict(checkpoint['state_dict'], strict=strict)
+        model.load_state_dict(checkpoint["state_dict"], strict=strict)
         return model
 
     @staticmethod
     def load(filename, strict=False):
-        try:
-            return torch.jit.load(filename)
-        except RuntimeError:
-            checkpoint = torch.load(filename, map_location="cpu", weights_only=False)
-            return CorrNet.load_dict(checkpoint, strict=strict)
+        checkpoint = load_compiled_or_checkpoint(filename)
+        if not isinstance(checkpoint, dict):
+            return checkpoint
+        return CorrNet.load_dict(checkpoint, strict=strict)

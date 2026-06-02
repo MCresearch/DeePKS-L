@@ -5,8 +5,7 @@ import sys
 import subprocess
 import numpy as np
 from deepks.io.utils import load_sys_paths, get_sys_name, get_with_prefix, load_array
-from deepks.ml.models.corrnet import CorrNet
-from deepks.physics.defaults import DEFAULT_FNAMES
+from deepks.physics.backends.constants import DEFAULT_DUMP_FIELDS
 
 
 def load_system_data(path):
@@ -24,7 +23,7 @@ def load_system_data(path):
         frames: List of atom lists, each atom is [element, [x, y, z]]
         lattice_info: Dict with 'lattice_vector', 'lattice_constant' if available
     """
-    from deepks.physics.defaults import TYPE_NAME
+    from deepks.physics.constants import TYPE_NAME
 
     lattice_info = {}
 
@@ -372,17 +371,7 @@ def main(systems, model_file=None, proj_basis=None, device="cpu",
         **abacus_args: ABACUS-specific arguments
     """
     if dump_fields is None:
-        dump_fields = list(DEFAULT_FNAMES)
-
-    # Load model if provided (for future DeePKS-ABACUS integration)
-    if model_file and model_file.upper() != "NONE":
-        try:
-            model = CorrNet.load(model_file).double()
-            if verbose:
-                print(f"Loaded model from {model_file}")
-        except Exception as e:
-            print(f"Warning: Failed to load model: {e}", file=sys.stderr)
-            model = None
+        dump_fields = list(DEFAULT_DUMP_FIELDS)
 
     # Get ABACUS parameters
     abacus_path = abacus_args.get('abacus_path', '/usr/local/bin/ABACUS.mpi')

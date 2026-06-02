@@ -267,3 +267,7 @@ conda run -n test_env python -m pytest tests/ --cov=deepks
 **测试状态**: ✅ 76 passed, 5 skipped
 
 🎉 **重构圆满完成！项目已准备好进行下一阶段的功能优化和扩展。**
+> Note: parts of this document are historical. For the current architecture and
+> refactor end-state, prefer `ARCHITECTURE.md`,
+> `ABSTRACT_CLASS_DEPENDENCY.md`, `PHYSICS_SCOPE_AUDIT.md`, and
+> `FINAL_REFACTOR_PHASE_PLAN.md`.

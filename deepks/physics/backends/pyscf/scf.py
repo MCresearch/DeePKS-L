@@ -7,8 +7,8 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf import gto
 from pyscf import scf, dft
+from deepks.io.model_artifacts import load_elem_table_sidecar
 from deepks.physics.backends.pyscf.basis import load_basis, get_shell_sec
-from deepks.ml.models.corrnet import CorrNet
 from deepks.physics.backends.pyscf.penalty import PenaltyMixin
 
 # all variables and functions start with "t_" are torch based.
@@ -62,7 +62,20 @@ def t_get_corr(model, dm, ovlp_shells, with_vc=True):
     dm.requires_grad_(True)
     ceig = t_make_eig(dm, ovlp_shells) # natoms x nproj
     _dref = next(model.parameters()) if isinstance(model, nn.Module) else "cpu"
-    ec = model(ceig.to(_dref))  # no batch dim here, unsqueeze(0) if needed
+    raw = model(ceig.to(_dref))  # per-atom unreduced after R1
+    # R1: descriptor-energy models now return the unreduced per-atom
+    # contribution; the extensive sum-over-atoms reduction and the additive
+    # output_bias calibration are applied here at the SCF call site, since
+    # SCF expects a scalar correction energy. For TorchScript-traced models
+    # (which already include the reduction internally) ``raw`` is already a
+    # scalar — the shape check leaves it untouched.
+    if hasattr(raw, "dim") and raw.dim() >= 2:
+        ec = raw.sum(-2)
+    else:
+        ec = raw
+    bias = getattr(model, "output_bias", None)
+    if bias is not None:
+        ec = ec + bias
     if not with_vc:
         return ec.to(ceig)
     [vc] = torch.autograd.grad(ec, dm, torch.ones_like(ec))
@@ -179,18 +192,24 @@ class CorrMixin(abc.ABC):
 class NetMixin(CorrMixin):
     """Mixin class to add correction term given by a neural network model"""
 
-    def __init__(self, model, proj_basis=None, device="cpu"):
+    def __init__(self, model, proj_basis=None, device="cpu", elem_table=None):
         # make sure you call this method after the base SCF class init
         # otherwise it would throw an error due to the lack of mol attr
         self.device = device
         if isinstance(model, str):
-            model = CorrNet.load(model).double()
+            if elem_table is None:
+                elem_table = load_elem_table_sidecar(model)
+            # Lazy import keeps the model-file loader out of module-level physics
+            # imports; physics-side backends accept either an in-memory model or
+            # a checkpoint path resolved via the ML model registry here.
+            from deepks.ml.model_io import load_runtime_model
+            model = load_runtime_model(model)
         if isinstance(model, torch.nn.Module):
             model = model.to(self.device).eval()
         self.net = model
-        # try load basis from model file
+        self.elem_table = elem_table
         if proj_basis is None:
-            proj_basis = getattr(model, "_pbas", None)
+            raise ValueError("PySCF backend requires an explicit projection basis in physics.representation.params.proj_basis")
         # should be a list here, follow pyscf convention
         self._pbas = load_basis(proj_basis)
         # [1,1,1,...,3,3,3,...,5,5,5,...]
@@ -221,7 +240,9 @@ class NetMixin(CorrMixin):
         t_ec, t_vc = t_get_corr(self.net, t_dm, self._t_ovlp_shells, with_vc=True)
         ec = t_ec.item() if t_ec.nelement()==1 else t_ec.detach().cpu().numpy()
         vc = t_vc.detach().cpu().numpy()
-        ec = ec + self.net.get_elem_const(filter(None, self.mol.atom_charges()))
+        if self.elem_table is not None:
+            elem_dict = dict(zip(*self.elem_table))
+            ec = ec + sum(elem_dict[ee] for ee in filter(None, self.mol.atom_charges()))
         return ec, vc
 
     def nuc_grad_method(self):
@@ -282,19 +303,19 @@ class NetMixin(CorrMixin):
         return proj.reshape(nao, natm, pnao // natm)
 
     # additional methods for dm training impl'd in addons
-    # from deepks.physics.backends.pyscf.addons import make_grad_eig_egrad
-    # from deepks.physics.backends.pyscf.addons import make_grad_coul_veig
-    # from deepks.physics.backends.pyscf.addons import calc_optim_veig
+    # from deepks.physics.backends.pyscf.optim import make_grad_eig_egrad
+    # from deepks.physics.backends.pyscf.optim import make_grad_coul_veig
+    # from deepks.physics.backends.pyscf.optim import calc_optim_veig
         
 
 class DSCF(NetMixin, PenaltyMixin, dft.rks.RKS):
     """Restricted SCF solver for given NN energy model"""
     
-    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device="cpu"):
+    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device="cpu", elem_table=None):
         # base method must be initialized first
         dft.rks.RKS.__init__(self, mol, xc=xc)
         # correction mixin initialization
-        NetMixin.__init__(self, model, proj_basis=proj_basis, device=device)
+        NetMixin.__init__(self, model, proj_basis=proj_basis, device=device, elem_table=elem_table)
         # penalty term initialization
         PenaltyMixin.__init__(self, penalties=penalties)
         # update keys to avoid pyscf warning
@@ -306,11 +327,11 @@ DeepSCF = RDSCF = DSCF
 class UDSCF(NetMixin, PenaltyMixin, dft.uks.UKS):
     """Unrestricted SCF solver for given NN energy model"""
     
-    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device="cpu"):
+    def __init__(self, mol, model, xc="HF", proj_basis=None, penalties=None, device="cpu", elem_table=None):
         # base method must be initialized first
         dft.uks.UKS.__init__(self, mol, xc=xc)
         # correction mixin initialization
-        NetMixin.__init__(self, model, proj_basis=proj_basis, device=device)
+        NetMixin.__init__(self, model, proj_basis=proj_basis, device=device, elem_table=elem_table)
         # penalty term initialization
         PenaltyMixin.__init__(self, penalties=penalties)
         # update keys to avoid pyscf warning

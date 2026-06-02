@@ -210,7 +210,7 @@ class NetGradMixin(CorrGradMixin):
         return scanner
 
     # additional methods for dm training impl'd in addons
-    # from deepks.physics.backends.pyscf.addons import gcalc_optim_veig as calc_optim_veig
+    # from deepks.physics.backends.pyscf.optim import gcalc_optim_veig as calc_optim_veig
 
 
 def build_grad(mf):
@@ -253,7 +253,7 @@ from deepks.physics.backends.pyscf.scf import UDSCF
 UDSCF.Gradients = lib.class_as_method(UGradients)
 
 
-# # legacy method, kept for reference
+# Historical method kept for reference
 # def make_mask(mol1, mol2, atom_id):
 #     mask = np.zeros((mol1.nao, mol2.nao))
 #     bg1, ed1 = mol1.aoslice_by_atom()[atom_id, 2:]

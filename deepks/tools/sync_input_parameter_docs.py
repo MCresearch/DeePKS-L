@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Regenerate docs/input-parameter.md from the input contract source."""
+"""Regenerate docs/input-parameter.md from the input docs source."""
 
 import argparse
 from pathlib import Path
@@ -21,7 +21,7 @@ def sync_input_parameter_docs(output_path=DOC_SYNC_TARGET):
 def main():
     parser = argparse.ArgumentParser(
         prog="sync_input_parameter_docs",
-        description="Regenerate docs/input-parameter.md from deepks/io/input/config.py",
+        description="Regenerate docs/input-parameter.md from deepks/io/input/docs.py",
     )
     parser.add_argument(
         "--output",

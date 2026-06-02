@@ -17,7 +17,7 @@ def test_core_imports_smoke():
     import deepks.__main__
     import deepks.ml.models.corrnet
     import deepks.io.readers
-    import deepks.ml.eval.evaluator
+    import deepks.interface.objectives
     import deepks.orchestration.workflow.workflow
 
     pytest.importorskip("pyscf")

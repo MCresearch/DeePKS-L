@@ -54,18 +54,3 @@ def get_scf_backend(backend_name: str, config: Optional[Dict[str, Any]] = None) 
         raise ValueError(f"Backend {backend_name} is not an SCF backend")
 
     return backend
-
-
-# Backward compatibility with old code
-def get_physics_backend(scf_soft: str = 'pyscf') -> SCFBackend:
-    """Get physics backend (backward compatibility).
-
-    This function maintains compatibility with the old CLI code.
-
-    Args:
-        scf_soft: SCF software name ('pyscf' or 'abacus')
-
-    Returns:
-        SCFBackend: Backend instance
-    """
-    return get_scf_backend(scf_soft)

@@ -1,13 +1,12 @@
 """Iterate workflow - main orchestration.
 
-This module implements the iterative training workflow for DeePKS.
-It combines SCF calculations and model training in an iterative loop.
+This workflow now expects configuration to be normalized by ``deepks.io.input``
+before dispatch. It only builds and executes the iterate workflow tree.
 """
 
 import os
 from typing import Dict, Any
 
-from deepks.io.input import build_runtime_config_from_raw
 from .prepare import prepare_iterate
 
 
@@ -24,29 +23,12 @@ def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
     3. Repeat until convergence or max iterations
 
     Args:
-        config: Configuration dictionary containing:
-            - type: 'iterate'
-            - systems_train: Training system paths
-            - systems_test: Test system paths (optional)
-            - n_iter: Number of iterations
-            - scf_soft: SCF backend ('pyscf' or 'abacus')
-            - scf_input: SCF parameters
-            - scf_machine: SCF machine settings
-            - train_input: Training parameters
-            - train_machine: Training machine settings
-            - init_model: Initial model path (optional)
-            - init_scf: Initial SCF parameters
-            - init_train: Initial training parameters
-            - proj_basis: Projection basis file
-            - workdir: Working directory
-            - share_folder: Shared files folder
-            - cleanup: Whether to cleanup intermediate files
+        config: Iteration configuration already normalized by ``deepks.io.input``.
 
     Returns:
         dict: Iteration results with final model and statistics
     """
-    runtime_config = build_runtime_config_from_raw(config)
-    iterate_config = runtime_config['raw_config']
+    iterate_config = config
 
     # Prepare iteration workflow
     iteration_workflow, workdir, record_file = prepare_iterate(iterate_config)
@@ -60,7 +42,8 @@ def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
         iteration_workflow.run()
 
     # Collect results
-    n_iter = iterate_config.get('n_iter', 0)
+    iterate_cfg = iterate_config.get("iterate") if isinstance(iterate_config.get("iterate"), dict) else {}
+    n_iter = iterate_cfg.get('n_iter', 0)
     final_model = os.path.join(workdir, f'iter.{n_iter:02d}', '01.train', 'model.pth')
 
     results = {

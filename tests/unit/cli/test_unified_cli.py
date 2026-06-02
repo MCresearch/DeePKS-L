@@ -79,126 +79,135 @@ def test_cli_config_loading():
     """Test schema-derived config loading and merging."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('type: scf\n')
-        f.write('scf_soft: pyscf\n')
-        f.write('systems:\n  - sys1\n')
-        f.write('basis: ccpvtz\n')
+        f.write('data:\n  systems:\n    - sys1\n')
+        f.write('physics:\n')
+        f.write('  backend:\n')
+        f.write('    name: pyscf\n')
+        f.write('    input:\n')
+        f.write('      basis: ccpvtz\n')
         f.flush()
         config_path = f.name
 
     try:
-        from deepks.io.input import build_runtime_config
+        from deepks.io.input import load_runtime_config
 
-        runtime = build_runtime_config(config_path)
-        raw = runtime['raw_config']
-        scf_param = runtime['scf_param']
+        runtime = load_runtime_config(config_path)
+        raw = runtime['scf_param']
 
         assert raw['type'] == 'scf'
-        assert raw['scf_soft'] == 'pyscf'
-        assert raw['scf_pyscf']['basis'] == 'ccpvtz'
-        assert raw['verbose'] == 1
-        assert 'mol_args' in raw['scf_pyscf']
-        assert scf_param['scf_pyscf']['basis'] == 'ccpvtz'
+        assert raw['physics']['backend']['name'] == 'pyscf'
+        assert raw['physics']['backend']['input']['basis'] == 'ccpvtz'
+        assert raw['runtime']['verbose'] == 1
+        assert 'mol_args' in raw['physics']['backend']['input']
 
     finally:
         os.unlink(config_path)
 
 
-def test_cli_iterate_inheritance():
-    """Test iterate inheritance with nested backend config."""
+def test_cli_iterate_phase_configuration():
+    """Test iterate uses the new phase-value configuration style."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('type: iterate\n')
-        f.write('scf_soft: pyscf\n')
-        f.write('systems_train:\n  - sys1\n')
-        f.write('n_iter: 5\n')
-        f.write('scf_input:\n')
-        f.write('  basis: ccpvdz\n')
-        f.write('  scf_args:\n')
-        f.write('    conv_tol: 1e-7\n')
-        f.write('init_scf:\n')
-        f.write('  scf_args:\n')
-        f.write('    conv_tol: 1e-5\n')
+        f.write('data:\n')
+        f.write('  train:\n')
+        f.write('    - sys1\n')
+        f.write('physics:\n')
+        f.write('  backend:\n')
+        f.write('    name: pyscf\n')
+        f.write('    input:\n')
+        f.write('      basis: ccpvdz\n')
+        f.write('      scf_args:\n')
+        f.write('        main:\n')
+        f.write('          conv_tol: 1e-7\n')
+        f.write('        init:\n')
+        f.write('          conv_tol: 1e-5\n')
+        f.write('iterate:\n')
+        f.write('  n_iter: 5\n')
+        f.write('  use_init: true\n')
         f.flush()
         config_path = f.name
 
     try:
-        from deepks.io.input import build_runtime_config
+        from deepks.io.input import load_runtime_config
 
-        runtime = build_runtime_config(config_path)
-        final = runtime['raw_config']
+        runtime = load_runtime_config(config_path)
+        final = runtime['iterate_param']
+        scf_main = final['iterate']['tasks']['main']['scf']['scf_param']
+        scf_init = final['iterate']['tasks']['init']['scf']['scf_param']
 
-        assert final['init_scf']['basis'] == 'ccpvdz'
-        assert final['init_scf']['scf_args']['conv_tol'] == 1e-5
-        assert final['scf_pyscf']['basis'] == 'ccpvdz'
+        assert scf_main['physics']['backend']['input']['basis'] == 'ccpvdz'
+        assert scf_main['physics']['backend']['input']['scf_args']['conv_tol'] == 1e-7
+        assert scf_init['physics']['backend']['input']['scf_args']['conv_tol'] == 1e-5
+        assert final['iterate']['use_init'] is True
 
     finally:
         os.unlink(config_path)
 
 
-def test_cli_normalizes_flat_backend_keys_into_nested_blocks():
-    """Test flat backend keys normalize into backend blocks."""
+def test_cli_expands_dotted_backend_keys_into_nested_blocks():
+    """Test dotted backend keys expand into backend blocks."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('type: scf\n')
-        f.write('systems:\n  - sys1\n')
-        f.write('basis: sto-3g\n')
-        f.write('mol_args:\n')
-        f.write('  charge: 1\n')
-        f.write('scf_args:\n')
-        f.write('  max_cycle: 3\n')
+        f.write('data.systems:\n')
+        f.write('  - sys1\n')
+        f.write('physics.backend.name: pyscf\n')
+        f.write('physics.backend.input.basis: sto-3g\n')
+        f.write('physics.backend.input.mol_args.charge: 1\n')
+        f.write('physics.backend.input.scf_args.max_cycle: 3\n')
         f.flush()
         config_path = f.name
 
     try:
-        from deepks.io.input import build_runtime_config
+        from deepks.io.input import load_runtime_config
 
-        runtime = build_runtime_config(config_path)
-        raw = runtime['raw_config']
-        scf_param = runtime['scf_param']
+        runtime = load_runtime_config(config_path)
+        raw = runtime['scf_param']
 
-        assert raw['scf_soft'] == 'pyscf'
-        assert raw['scf_pyscf']['basis'] == 'sto-3g'
-        assert raw['scf_pyscf']['mol_args']['charge'] == 1
-        assert raw['scf_pyscf']['scf_args']['max_cycle'] == 3
-        assert scf_param['scf_pyscf']['basis'] == 'sto-3g'
-        assert scf_param['scf_pyscf']['mol_args']['charge'] == 1
-        assert scf_param['scf_pyscf']['scf_args']['max_cycle'] == 3
-
+        assert raw['physics']['backend']['name'] == 'pyscf'
+        assert raw['physics']['backend']['input']['basis'] == 'sto-3g'
+        assert raw['physics']['backend']['input']['mol_args']['charge'] == 1
+        assert raw['physics']['backend']['input']['scf_args']['max_cycle'] == 3
     finally:
         os.unlink(config_path)
 
 
-def test_cli_normalizes_iterate_abacus_init_compatibility():
-    """Test iterate ABACUS init compatibility normalization."""
+def test_cli_normalizes_iterate_phase_values():
+    """Test iterate phase values stay on the new structured schema."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('type: iterate\n')
-        f.write('scf_soft: abacus\n')
-        f.write('systems_train:\n  - sys1\n')
-        f.write('scf_abacus:\n')
-        f.write('  orb_files:\n')
-        f.write('    - orb\n')
-        f.write('  pp_files:\n')
-        f.write('    - upf\n')
-        f.write('  abacus_path: abacus\n')
-        f.write('init_scf:\n')
-        f.write('  scf_nmax: 88\n')
-        f.write('  orb_files:\n')
-        f.write('    - orb\n')
-        f.write('  pp_files:\n')
-        f.write('    - upf\n')
+        f.write('data:\n')
+        f.write('  train:\n')
+        f.write('    - sys1\n')
+        f.write('physics:\n')
+        f.write('  backend:\n')
+        f.write('    name: abacus\n')
+        f.write('    input:\n')
+        f.write('      orb_files:\n')
+        f.write('        - orb\n')
+        f.write('      pp_files:\n')
+        f.write('        - upf\n')
+        f.write('      scf_nmax:\n')
+        f.write('        - 50\n')
+        f.write('        - 88\n')
+        f.write('runtime:\n')
+        f.write('  scf:\n')
+        f.write('    command:\n')
+        f.write('      abacus_path: abacus\n')
+        f.write('iterate:\n')
+        f.write('  use_init: true\n')
         f.flush()
         config_path = f.name
 
     try:
-        from deepks.io.input import build_runtime_config
+        from deepks.io.input import load_runtime_config
 
-        runtime = build_runtime_config(config_path)
-        raw = runtime['raw_config']
-        iterate_param = runtime['iterate_param']
-
-        assert raw['init_scf'] is True
-        assert raw['init_scf_abacus']['scf_nmax'] == 88
-        assert raw['scf_abacus']['abacus_path'] == 'abacus'
-        assert raw['init_scf_abacus']['orb_files'] == ['orb']
-        assert iterate_param['init_scf_abacus']['scf_nmax'] == 88
+        runtime = load_runtime_config(config_path)
+        raw = runtime['iterate_param']
+        assert raw['iterate']['tasks']['main']['scf']['scf_param']['physics']['backend']['input']['scf_nmax'] == 50
+        assert raw['iterate']['tasks']['init']['scf']['scf_param']['physics']['backend']['input']['scf_nmax'] == 88
+        assert raw['iterate']['tasks']['main']['scf']['scf_param']['physics']['backend']['input']['orb_files'] == ['orb']
+        assert raw['iterate']['tasks']['main']['scf']['scf_param']['runtime']['scf']['command']['abacus_path'] == 'abacus'
+        assert raw['iterate']['use_init'] is True
 
     finally:
         os.unlink(config_path)
@@ -212,19 +221,64 @@ def test_cli_auto_detects_cuda_device_when_user_omits_device(monkeypatch):
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write('type: test\n')
-        f.write('systems_test:\n')
-        f.write('  - sys1\n')
-        f.write('model_file: model.pth\n')
+        f.write('data:\n')
+        f.write('  test:\n')
+        f.write('    - sys1\n')
+        f.write('ml:\n')
+        f.write('  checkpoint:\n')
+        f.write('    file: model.pth\n')
         f.flush()
         config_path = f.name
 
     try:
-        from deepks.io.input import build_runtime_config
+        from deepks.io.input import load_runtime_config
 
-        runtime = build_runtime_config(config_path)
+        runtime = load_runtime_config(config_path)
 
-        assert runtime['raw_config']['device'] == 'cuda:0'
-        assert runtime['global_param']['device'] == 'cuda:0'
+        assert runtime['test_param']['runtime']['device'] == 'cuda:0'
+    finally:
+        os.unlink(config_path)
+
+
+def test_cli_normalizes_interface_style_train_config():
+    """Test new scheme/model/physics/objective blocks map into runtime config."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write('type: train\n')
+        f.write('recipe: corrnet-energy\n')
+        f.write('data:\n')
+        f.write('  train:\n')
+        f.write('    - sys1\n')
+        f.write('ml:\n')
+        f.write('  model:\n')
+        f.write('    family: corrnet\n')
+        f.write('    args:\n')
+        f.write('      hidden_sizes:\n')
+        f.write('        - 8\n')
+        f.write('  objective:\n')
+        f.write('    losses:\n')
+        f.write('      energy: 1.0\n')
+        f.write('      force:\n')
+        f.write('        weight: 0.2\n')
+        f.write('        loss:\n')
+        f.write('          cap: 0.5\n')
+        f.write('physics:\n')
+        f.write('  representation:\n')
+        f.write('    name: dm_eig\n')
+        f.flush()
+        config_path = f.name
+
+    try:
+        from deepks.io.input import load_runtime_config
+
+        runtime = load_runtime_config(config_path)
+        raw = runtime['train_param']
+
+        assert raw['recipe'] == 'corrnet-energy'
+        assert raw['ml']['model']['args']['hidden_sizes'] == [8]
+        assert raw['physics']['representation']['name'] == 'dm_eig'
+        assert raw['ml']['objective']['losses']['energy'] == 1.0
+        assert raw['ml']['objective']['losses']['force']['weight'] == 0.2
+        assert raw['ml']['objective']['losses']['force']['loss']['cap'] == 0.5
     finally:
         os.unlink(config_path)
 

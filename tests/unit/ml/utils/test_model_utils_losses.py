@@ -1,5 +1,5 @@
 """
-整体覆盖：`deepks.ml.utils` 中损失函数行为。
+整体覆盖：通用 loss 与 Hamiltonian loss 行为。
 
 测试列表：
 - `test_make_loss_mean_sum_none_batch`
@@ -13,7 +13,8 @@ import torch
 
 pytest.importorskip("pyabacus")
 
-from deepks.ml.utils import loss_hr, make_loss
+from deepks.interface.objectives.losses import loss_hr
+from deepks.ml.utils import make_loss
 
 
 def test_make_loss_mean_sum_none_batch():
@@ -60,7 +61,7 @@ def test_make_loss_invalid_reduction_raises():
 
 def test_loss_hr_formula():
 	"""
-	依赖：`deepks.ml.utils.loss_hr`。
+	依赖：`deepks.interface.objectives.losses.loss_hr`。
 	测试内容：验证 `loss_hr = sum(|diff|^2) / R_range / nlocal / nframe`。
 	"""
 	# shape: [nframe=2, R=2, R=2, R=2, nlocal=2, nlocal=2]
@@ -72,3 +73,14 @@ def test_loss_hr_formula():
 	assert torch.isclose(out, torch.tensor(8.0, dtype=torch.float64))
 
 
+def test_loss_hr_pads_mismatched_r_ranges():
+	"""
+	依赖：`deepks.interface.objectives.losses.loss_hr`。
+	测试内容：当预测与标签只在前三个 R 维范围不同，loss_hr 会先补零到共同范围再计算。
+	"""
+	inp = torch.zeros((1, 5, 5, 5, 2, 2), dtype=torch.float64)
+	tgt = torch.ones((1, 9, 9, 9, 2, 2), dtype=torch.float64)
+	out = loss_hr(inp, tgt)
+	# 补零后 diff 全为 1，总元素数=1*9*9*9*2*2=2916
+	# r_range=9, nlocal=2, nframe=1 => 2916/9/2/1 = 162
+	assert torch.isclose(out, torch.tensor(162.0, dtype=torch.float64))

@@ -6,9 +6,10 @@ Each backend (PySCF, ABACUS) must implement this interface.
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
+from deepks.physics.base import BackendRunner
 
 
-class PhysicsBackend(ABC):
+class PhysicsBackend(BackendRunner, ABC):
     """Abstract base class for physics calculation backends.
 
     A physics backend handles:
@@ -26,6 +27,15 @@ class PhysicsBackend(ABC):
             config: Backend-specific configuration dictionary
         """
         self.config = config or {}
+
+    @property
+    @abstractmethod
+    def backend_name(self) -> str:
+        """Stable backend identifier."""
+
+    @property
+    def name(self):
+        return self.backend_name
 
     @abstractmethod
     def generate_input(self, system_data: Dict[str, Any],
@@ -96,42 +106,26 @@ class PhysicsBackend(ABC):
         """
         return []
 
+    def prepare(self, systems, config, workdir):
+        merged = {**self.config, **(config or {})}
+        self.generate_input(systems, workdir, **merged)
+        return {
+            "systems": systems,
+            "workdir": workdir,
+            "config": merged,
+        }
+
+    def run(self, prepared, runtime_config):
+        workdir = prepared.get("workdir") if isinstance(prepared, dict) else prepared
+        return self.run_calculation(workdir, **(runtime_config or {}))
+
+    def collect(self, prepared, runtime_config):
+        workdir = prepared.get("workdir") if isinstance(prepared, dict) else prepared
+        fields = None
+        if isinstance(runtime_config, dict):
+            fields = runtime_config.get("fields")
+        return self.parse_output(workdir, fields=fields)
+
 
 class SCFBackend(PhysicsBackend):
-    """Base class for SCF (Self-Consistent Field) backends.
-
-    This extends PhysicsBackend with SCF-specific methods.
-    """
-
-    def run_scf(self, systems: List[str], **kwargs) -> Dict[str, Any]:
-        """Run SCF calculation on multiple systems.
-
-        Args:
-            systems: List of system paths
-            **kwargs: SCF parameters
-
-        Returns:
-            dict: SCF results
-        """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement run_scf."
-        )
-
-    def collect_stats(self, systems: List[str], **kwargs) -> Dict[str, Any]:
-        """Collect statistics from SCF results.
-
-        Backends are not required to implement this method.  The stats
-        workflow calls backend-agnostic utilities in
-        ``deepks.physics.backends.stats`` directly.
-
-        Args:
-            systems: List of system paths
-            **kwargs: Collection parameters
-
-        Returns:
-            dict: Statistics and aggregated data
-        """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement collect_stats. "
-            "Use deepks.physics.backends.stats utilities directly."
-        )
+    """Marker base class for SCF-capable backends."""

@@ -1,9 +1,9 @@
 """PySCF backend package.
 
-This package implements the PySCF backend for physics calculations.
-Note: PySCF is not available in test_env, so tests are skipped.
+Keep package import lightweight so environments without PySCF can still import
+unrelated helpers such as basis metadata or interface adapters.
 """
 
 from .backend import PySCFBackend
 
-__all__ = ['PySCFBackend']
+__all__ = ["PySCFBackend"]

@@ -8,12 +8,11 @@ Available backends:
 """
 
 from .base import PhysicsBackend, SCFBackend
-from .factory import get_backend, get_scf_backend, get_physics_backend
+from .factory import get_backend, get_scf_backend
 
 __all__ = [
     'PhysicsBackend',
     'SCFBackend',
     'get_backend',
     'get_scf_backend',
-    'get_physics_backend',
 ]

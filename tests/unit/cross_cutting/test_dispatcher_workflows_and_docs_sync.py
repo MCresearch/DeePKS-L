@@ -16,22 +16,19 @@ def test_dispatcher_routes_test_through_workflow_wrapper(monkeypatch):
 
     runtime_config = {
         'type': 'test',
-        'raw_config': {'type': 'test', 'device': 'cpu'},
-        'global_param': {'verbose': 2},
         'test_param': {
-            'systems_test': ['sys-a'],
-            'data_paths': ['sys-a'],
-            'model_file': 'model.pth',
-            'output_prefix': 'pref',
+            'type': 'test',
+            'runtime': {'device': 'cpu', 'verbose': 2},
+            'data': {'test': ['sys-a']},
+            'ml': {'checkpoint': {'file': 'model.pth'}},
         },
     }
 
     result = dispatch_command(runtime_config)
 
     assert result == {'ok': 'test'}
-    assert seen['config']['systems_test'] == ['sys-a']
-    assert seen['config']['data_paths'] == ['sys-a']
-    assert seen['config']['verbose'] == 2
+    assert seen['config']['data']['test'] == ['sys-a']
+    assert seen['config']['runtime']['verbose'] == 2
     assert seen['config']['type'] == 'test'
 
 
@@ -48,11 +45,10 @@ def test_dispatcher_routes_stats_through_workflow_wrapper(monkeypatch):
 
     runtime_config = {
         'type': 'stats',
-        'raw_config': {'type': 'stats'},
-        'global_param': {'verbose': 1},
         'stats_param': {
+            'type': 'stats',
+            'verbose': 1,
             'systems': ['sys-a'],
-            'scf_soft': 'abacus',
             'dump_dir': 'dump',
         },
     }
@@ -61,7 +57,6 @@ def test_dispatcher_routes_stats_through_workflow_wrapper(monkeypatch):
 
     assert result == {'ok': 'stats'}
     assert seen['config']['systems'] == ['sys-a']
-    assert seen['config']['scf_soft'] == 'abacus'
     assert seen['config']['dump_dir'] == 'dump'
     assert seen['config']['verbose'] == 1
     assert seen['config']['type'] == 'stats'
@@ -79,7 +74,8 @@ def test_sync_input_parameter_docs_writes_rendered_content(tmp_path):
     assert written_path == str(output)
     assert output.read_text(encoding='utf-8') == expected
     assert output.read_text(encoding='utf-8').startswith('# DeePKS input parameter reference\n')
-    assert '| `device` | `string` | `train, test, scf, iterate` |' in expected
+    assert '| `runtime` | `dict` | `all` |' in expected
+    assert '| `physics.representation` | `string | dict` | `train, test, iterate` |' in expected
 
 
 def test_configure_line_buffered_stdio_uses_safe_reconfigure(monkeypatch):
@@ -109,7 +105,7 @@ def test_main_returns_zero_on_success(monkeypatch, tmp_path):
     config = tmp_path / 'input.yaml'
     config.write_text('type: test\nsystems_test:\n  - sys1\nmodel_file: model.pth\n', encoding='utf-8')
 
-    monkeypatch.setattr('deepks.io.input.build_runtime_config', lambda path: {'type': 'test'})
+    monkeypatch.setattr('deepks.io.input.load_runtime_config', lambda path: {'type': 'test'})
     monkeypatch.setattr('deepks.io.input.dispatcher.dispatch_command', lambda runtime: {'ok': True})
 
     argv = sys.argv

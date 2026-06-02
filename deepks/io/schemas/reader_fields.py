@@ -30,6 +30,12 @@ class ReaderFieldNames:
     conv_name: str = "conv"
     atom_name: str = "atom"
     box_name: str = "box"
+    # deepks_v_delta=-2 R-space chain-rule helpers (precomputed by ABACUS,
+    # collected by iterate_ops). When present alongside ``grad_evdm.npy`` the
+    # reader's R-space loader skips the Python-side cal_nb_overlap and feeds
+    # these directly into the batch context for the chain-rule V_delta(R) path.
+    iR_mat_name: str = "iR_mat"
+    phialpha_r_name: str = "phialpha_r"
 
 
 DEFAULT_READER_FIELD_NAMES = ReaderFieldNames()
@@ -59,6 +65,8 @@ READER_PATH_ATTR_MAP = {
     "conv_name": "c_path",
     "atom_name": "a_path",
     "box_name": "b_path",
+    "iR_mat_name": "iR_mat_path",
+    "phialpha_r_name": "phialpha_r_path",
 }
 
 

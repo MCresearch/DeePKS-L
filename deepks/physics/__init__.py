@@ -1,15 +1,17 @@
 """Physics calculation layer for DeePKS.
 
-This package groups backend-independent workflow concepts and concrete
-backend implementations in a layout that is easy for researchers to read.
+The main public structure is:
+
+- `properties/`: one file per physical quantity
+- `engine.py`: property orchestration facade
+- `backends/`: concrete SCF/backend execution
 """
 
-from .backends import PhysicsBackend, SCFBackend, get_backend, get_scf_backend, get_physics_backend
+from .backends import PhysicsBackend, SCFBackend, get_backend, get_scf_backend
 
 __all__ = [
     'PhysicsBackend',
     'SCFBackend',
     'get_backend',
     'get_scf_backend',
-    'get_physics_backend',
 ]

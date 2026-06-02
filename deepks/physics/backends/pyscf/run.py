@@ -8,11 +8,17 @@ try:
     import deepks
 except ImportError as e:
     sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../../")
-from deepks.physics.defaults import DEFAULT_FNAMES, DEFAULT_UNIT, DEFAULT_HF_ARGS, DEFAULT_SCF_ARGS, MOL_ATTRIBUTE
+from deepks.io.model_artifacts import load_elem_table_sidecar
+from deepks.physics.backends.constants import DEFAULT_DUMP_FIELDS
+from deepks.physics.backends.pyscf.settings import (
+    DEFAULT_HF_ARGS,
+    DEFAULT_SCF_ARGS,
+    DEFAULT_UNIT,
+    MOL_ATTRIBUTE,
+)
 from deepks.physics.backends.pyscf.scf import DSCF, UDSCF
-from deepks.physics.backends.pyscf.fields import select_fields
+from deepks.physics.backends.pyscf.schema import select_fields
 from deepks.physics.backends.pyscf.penalty import select_penalty
-from deepks.ml.models.corrnet import CorrNet
 from deepks.io.utils import check_list, flat_file_list
 from deepks.io.utils import is_xyz, load_sys_paths
 from deepks.io.utils import load_yaml, load_array
@@ -21,6 +27,7 @@ from deepks.io.utils import get_sys_name, get_with_prefix
 
 def solve_mol(mol, model, fields, labels=None,
               proj_basis=None, penalties=None, device="cpu",
+              elem_table=None,
               chkfile=None, verbose=0,
               **scf_args):
     
@@ -30,7 +37,8 @@ def solve_mol(mol, model, fields, labels=None,
     cf = SCFcls(mol, model, 
                 proj_basis=proj_basis, 
                 penalties=penalties, 
-                device=device)
+                device=device,
+                elem_table=elem_table)
     cf.set(chkfile=chkfile, verbose=verbose)
     grid_args = scf_args.pop("grids", {})
     cf.set(**scf_args)
@@ -182,13 +190,20 @@ def dump_data(dir_name, **data_dict):
 
 def main(systems, model_file="model.pth", basis='ccpvdz', 
          proj_basis=None, penalty_terms=None, device="cpu",
-         dump_dir=".", dump_fields=DEFAULT_FNAMES, group=False, 
+         dump_dir=".", dump_fields=DEFAULT_DUMP_FIELDS, group=False, 
          mol_args=None, scf_args=None, verbose=0):
     if model_file is None or model_file.upper() == "NONE":
         model = None
+        elem_table = None
         default_scf_args = DEFAULT_HF_ARGS
     else:
-        model = CorrNet.load(model_file).double()
+        # Lazy ML import: this main is the pyscf SCF subtask entry point,
+        # invoked via `deepks scf <yaml>`. It is where a model-file path
+        # becomes an in-memory model object before being handed to backend
+        # code that only accepts model objects.
+        from deepks.ml.model_io import load_runtime_model
+        model = load_runtime_model(model_file)
+        elem_table = load_elem_table_sidecar(model_file)
         default_scf_args = DEFAULT_SCF_ARGS
 
     # check arguments
@@ -221,7 +236,7 @@ def main(systems, model_file="model.pth", basis='ccpvdz',
             try:
                 meta, result = solve_mol(mol, model, fields, labels,
                                          proj_basis=proj_basis, penalties=penalties,
-                                         device=device, verbose=verbose, **scf_args)
+                                         device=device, verbose=verbose, elem_table=elem_table, **scf_args)
             except Exception as e:
                 print(fl, 'failed! error:', e, file=sys.stderr)
                 # continue
@@ -250,5 +265,5 @@ def main(systems, model_file="model.pth", basis='ccpvdz',
 
 
 # This module is not intended to be run directly.
-# SCF calculations are invoked via BatchTask from the iterate workflow (template.py),
+# SCF calculations are invoked via BatchTask from the iterate workflow task templates,
 # which calls make_scf_task() using the pyscf backend runner.
