@@ -1,9 +1,12 @@
 name: Integration Test and Unit Test
 
 on:
+  push:
+    branches:
+      - "**"
   pull_request:
-    branches: 
-      - develop
+    branches:
+      - "**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,17 +33,12 @@ jobs:
           environment-file: environment.yml
           use-mamba: true
 
-      - name: Unit Test with PyTest
-        shell: bash -l {0}
-        run: |
-          pytest tests/unittests/ -s
-
-      - name: Integration Test withs PyTest
+      - name: Run smoke/unit/integration/regression tests
         shell: bash -l {0}
         env:
-          ROOT_DIR: ${{ github.workspace }}
+          ENABLE_PYABACUS_TESTS: "0"
         run: |
-          pytest tests/integral/
+          pytest -q -m "not pyabacus" tests/
 
       # - name: Archive Pytest test report
       #   uses: actions/upload-artifact@v4

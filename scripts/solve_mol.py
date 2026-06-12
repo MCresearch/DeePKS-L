@@ -7,7 +7,7 @@
 import time
 import numpy as np
 from pyscf import gto, scf
-from deepks.default import BOHR2ANG
+from deepks.physics.defaults import BOHR2ANG
 
 _NO_FORCE = False
 _NO_DM = False

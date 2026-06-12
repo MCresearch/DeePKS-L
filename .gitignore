@@ -5,6 +5,7 @@ model.ckpt.*
 .vscode
 .ipynb_*
 *.swp
+.claude/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -59,5 +60,10 @@ ABACUS/
 
 # tests
 tests/ 
-iter*
+# Ignore top-level iteration artifacts only (do not hide source package paths).
+/iter*
+!deepks/pipelines/iterate/
+!deepks/pipelines/iterate/**
+deepks/pipelines/iterate/__pycache__/
+deepks/pipelines/iterate/*.pyc
 model.pt*

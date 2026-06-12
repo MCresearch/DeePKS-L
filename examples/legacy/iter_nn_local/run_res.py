@@ -7,13 +7,13 @@ import numpy as np
 
 # sys.path.append('/path/to/source')
 import deepks
-from deepks.model.train import main as train_main
-from deepks.model.test import main as train_test
-from deepks.scf.run import main as scf_main
-from deepks.scf.stats import collect_data_grouped
-from deepks.utils import load_yaml
-from deepks.task.task import PythonTask
-from deepks.task.workflow import Sequence, Iteration
+from deepks.ml.train.train import main as train_main
+from deepks.ml.eval.test import main as train_test
+from deepks.physics.backends.pyscf.run import main as scf_main
+from deepks.physics.backends.pyscf.stats import collect_data_grouped
+from deepks.io.utils import load_yaml
+from deepks.orchestration.workflow.task import PythonTask
+from deepks.orchestration.workflow.workflow import Sequence, Iteration
 
 
 niter = 5
