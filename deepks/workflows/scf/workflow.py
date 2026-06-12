@@ -1,6 +1,6 @@
 """SCF workflow orchestration."""
 
-from deepks.physics.backends.abacus.workflow_ops import (
+from deepks.workflows.scf.abacus import (
     build_prepare_task,
     collect_results,
     execute_sequence,

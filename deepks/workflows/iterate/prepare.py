@@ -15,9 +15,10 @@ from deepks.workflows.iterate.support import (
     make_train,
     prepare_iterate_snapshots,
     resolve_hierarchical_iterate_levels,
+    resolve_scf_profile_levels,
 )
 from deepks.orchestration.workflow.workflow import Iteration, Sequence
-from deepks.physics.backends.abacus.iterate_sequence import make_scf_abacus
+from deepks.workflows.iterate.abacus import make_scf_abacus
 
 
 DATA_TRAIN = "data_train"
@@ -163,10 +164,12 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     init_train_config = snapshot["init_train_config"]
     first_iter_has_model = bool(use_init or snapshot["initial_model_exists"])
     hierarchical_levels = resolve_hierarchical_iterate_levels(iterate_param)
+    profile_levels = [] if hierarchical_levels else resolve_scf_profile_levels(iterate_param)
+    scf_levels = hierarchical_levels or profile_levels
 
-    if hierarchical_levels:
+    if scf_levels:
         scf_step = _create_hierarchical_scf_step(
-            hierarchical_levels,
+            scf_levels,
             scf_soft=scf_soft,
             base_scf_config=scf_task_config,
             scf_machine=deepcopy(runtime.get("scf", {}).get("execute", {})) if isinstance(runtime.get("scf"), dict) else {},
@@ -194,7 +197,7 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
         share_folder=share_folder,
         cleanup=cleanup,
         restart=first_iter_has_model,
-        link_default_data=not hierarchical_levels,
+        link_default_data=not scf_levels,
     )
 
     iteration_workflow = Iteration(
@@ -205,9 +208,9 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
     )
 
     if use_init:
-        if hierarchical_levels:
+        if scf_levels:
             scf_init = _create_hierarchical_scf_step(
-                hierarchical_levels,
+                scf_levels,
                 scf_soft=scf_soft,
                 base_scf_config=init_scf_config,
                 scf_machine=deepcopy(runtime.get("scf", {}).get("execute", {})) if isinstance(runtime.get("scf"), dict) else {},
@@ -235,7 +238,7 @@ def prepare_iterate(config: Dict[str, Any]) -> Tuple[Sequence, str, str]:
             share_folder=share_folder,
             cleanup=cleanup,
             restart=bool(snapshot["initial_model_exists"]),
-            link_default_data=not hierarchical_levels,
+            link_default_data=not scf_levels,
         )
 
         init_folder = snapshot["share_path"] if snapshot["initial_model_exists"] else None

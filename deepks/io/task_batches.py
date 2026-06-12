@@ -3,7 +3,7 @@
 import re
 from typing import Any, Dict, Mapping, Optional
 
-from deepks.interface.batch import TaskBatch
+from deepks.io.batch import TaskBatch
 
 
 _TARGET_KEY_MAP = {

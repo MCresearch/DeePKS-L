@@ -14,8 +14,10 @@ from deepks.io.utils import check_list, check_array
 from deepks.io.utils import load_array, load_yaml
 from deepks.io.utils import get_sys_name, get_with_prefix
 
-# Re-export general stats functions from the stats workflow runtime layer
-from deepks.workflows.stats.runtime.reporting import (
+# General stats/reporting helpers live in deepks.io.reporting. Re-exported
+# here because the legacy iter_nn_* example scripts import collect_data /
+# collect_data_grouped from this module alongside the reporters.
+from deepks.io.reporting import (
     concat_data,
     print_stats,
     print_stats_conv,

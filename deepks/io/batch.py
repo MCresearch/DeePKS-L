@@ -1,9 +1,17 @@
-"""Unified batch container for physics/ML integration."""
+"""Unified batch container exchanged across layers.
+
+``TaskBatch`` lives in the io layer because it is a generic data
+container (a structured ``model_inputs`` / ``targets`` / ``context``
+record). The interface, ml, and physics layers all consume it but none
+of them own it — keeping it in io preserves the
+``io → ml/physics → interface`` dependency direction.
+"""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Tuple
 
 import torch
+
 from deepks.ml.base import BatchProtocol
 
 
@@ -17,13 +25,9 @@ class TaskBatch(BatchProtocol):
     meta: Dict[str, Any] = field(default_factory=dict)
 
     def field_names(self) -> Tuple[str, ...]:
-        """Return normalized field names carried by this batch."""
-
         return tuple(self.model_inputs) + tuple(self.targets) + tuple(self.context)
 
     def display_keys(self) -> Tuple[str, ...]:
-        """Return user-facing field names for logs, preferring preserved source labels."""
-
         display = self.meta.get("display_keys")
         if display is not None:
             return tuple(display)
@@ -34,8 +38,6 @@ class TaskBatch(BatchProtocol):
         return self.meta
 
     def to_device(self, device: str, *, complex_cpu_context_keys=()):
-        """Return a copy with tensor payloads moved onto the requested device."""
-
         def _move(value, *, keep_complex_cpu=False):
             if isinstance(value, list):
                 return [_move(v, keep_complex_cpu=keep_complex_cpu) for v in value]
@@ -64,3 +66,6 @@ class TaskBatch(BatchProtocol):
             context=context,
             meta=self.meta,
         )
+
+
+__all__ = ["TaskBatch"]

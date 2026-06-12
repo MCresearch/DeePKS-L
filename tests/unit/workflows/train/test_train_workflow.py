@@ -20,7 +20,7 @@ def test_train_workflow_imports():
 
 def test_train_workflow_dispatcher_integration():
     """Test that dispatcher can route to train workflow."""
-    from deepks.io.input.dispatcher import dispatch_command
+    from deepks.config.dispatcher import dispatch_command
 
     # This should not raise an error for train type
     config = {'type': 'train', 'systems_train': []}
@@ -247,7 +247,7 @@ def test_prepare_train_data_accepts_new_interface_blocks(monkeypatch):
             self.kwargs = kwargs
             self.ndesc = 6
 
-    monkeypatch.setattr("deepks.workflows.train.runtime.load_dirs", lambda paths: paths)
+    monkeypatch.setattr("deepks.io.utils.load_dirs", lambda paths: paths)
     monkeypatch.setattr("deepks.workflows.train.runtime.GroupReader", DummyReader)
 
     train_reader, test_reader, model_config = prepare_train_data({

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_dispatcher_routes_test_through_workflow_wrapper(monkeypatch):
-    from deepks.io.input.dispatcher import dispatch_command
+    from deepks.config.dispatcher import dispatch_command
 
     seen = {}
 
@@ -33,7 +33,7 @@ def test_dispatcher_routes_test_through_workflow_wrapper(monkeypatch):
 
 
 def test_dispatcher_routes_stats_through_workflow_wrapper(monkeypatch):
-    from deepks.io.input.dispatcher import dispatch_command
+    from deepks.config.dispatcher import dispatch_command
 
     seen = {}
 
@@ -63,7 +63,7 @@ def test_dispatcher_routes_stats_through_workflow_wrapper(monkeypatch):
 
 
 def test_sync_input_parameter_docs_writes_rendered_content(tmp_path):
-    from deepks.io.input import render_input_parameter_doc
+    from deepks.config import render_input_parameter_doc
     from deepks.tools.sync_input_parameter_docs import sync_input_parameter_docs
 
     output = tmp_path / 'input-parameter.md'
@@ -105,8 +105,8 @@ def test_main_returns_zero_on_success(monkeypatch, tmp_path):
     config = tmp_path / 'input.yaml'
     config.write_text('type: test\nsystems_test:\n  - sys1\nmodel_file: model.pth\n', encoding='utf-8')
 
-    monkeypatch.setattr('deepks.io.input.load_runtime_config', lambda path: {'type': 'test'})
-    monkeypatch.setattr('deepks.io.input.dispatcher.dispatch_command', lambda runtime: {'ok': True})
+    monkeypatch.setattr('deepks.config.load_runtime_config', lambda path: {'type': 'test'})
+    monkeypatch.setattr('deepks.config.dispatcher.dispatch_command', lambda runtime: {'ok': True})
 
     argv = sys.argv
     try:

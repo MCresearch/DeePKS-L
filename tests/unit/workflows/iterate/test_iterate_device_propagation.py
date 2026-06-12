@@ -46,7 +46,7 @@ def test_prepare_iterate_injects_global_device_into_generated_task_yaml(tmp_path
         },
     }
 
-    from deepks.io.input.packager import package_config
+    from deepks.config.packager import package_config
 
     workflow, _, _ = prepare_iterate(package_config(config)['iterate_param'])
 

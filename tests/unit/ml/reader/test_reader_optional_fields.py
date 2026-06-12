@@ -9,7 +9,7 @@
 import numpy as np
 
 from deepks.io.readers import Reader
-from deepks.interface.batch import TaskBatch
+from deepks.io.batch import TaskBatch
 
 
 def test_reader_minimal_fields_only(tmp_path):

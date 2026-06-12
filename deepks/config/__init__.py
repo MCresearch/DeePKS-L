@@ -1,6 +1,6 @@
 """Unified input configuration module for DeePKS."""
 
-from .config import normalize_config
+from .normalize import normalize_config
 from .docs import render_input_parameter_doc
 from .defaults import get_default_config
 from .loader import load_config

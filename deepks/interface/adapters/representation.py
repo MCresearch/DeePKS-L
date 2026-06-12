@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Mapping, Optional
 
-from deepks.interface.batch import TaskBatch
+from deepks.io.batch import TaskBatch
 from deepks.physics.base import RepresentationBuilder
 
 from .sample import sample_to_task_batch

@@ -106,6 +106,32 @@ def dump_yaml_str(data):
     return buf.getvalue()
 
 
+def check_share_folder(data, name, share_folder="share"):
+    """Save *data* to ``share_folder/name`` (or verify it exists) and return ``name``.
+
+    Used by both the iterate workflow (to materialize shared inputs once and
+    reference them by relative name in each subtask) and by the abacus backend
+    helpers (to resolve orb/pp/proj files against the shared layout). Lives in
+    io so neither workflow nor physics need to import upward to share files.
+    """
+
+    if not data:
+        return None
+
+    dst_name = os.path.join(share_folder, name)
+    if data is True:
+        if not os.path.exists(dst_name):
+            raise FileNotFoundError(f"No required file: {dst_name}")
+        return name
+    if isinstance(data, str) and os.path.exists(data):
+        copy_file(data, dst_name)
+        return name
+    if isinstance(data, dict):
+        save_yaml(data, dst_name)
+        return name
+    raise ValueError(f"Invalid argument: {data}")
+
+
 def load_array(file):
     ext = os.path.splitext(file)[-1]
     if 'npy' in ext:

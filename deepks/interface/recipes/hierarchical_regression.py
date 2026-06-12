@@ -35,6 +35,11 @@ from deepks.interface.objectives import (
     build_descriptor_property_eval_objective,
     build_descriptor_property_objective,
 )
+from deepks.interface.recipes._hierarchical_helpers import (
+    build_hierarchical_descriptor_objective_args,
+    build_stage_data_specs,
+    normalize_hierarchical_terms,
+)
 from deepks.interface.schemas import HIERARCHICAL_REGRESSION_SCHEMA
 from deepks.io.readers import GroupReader
 from deepks.ml.eval import Evaluator
@@ -228,32 +233,22 @@ class HierarchicalRegressionRecipe:
 
     @classmethod
     def _resolve_stage_data_from_config(cls, config, level_index):
-        from deepks.workflows.train.runtime import (
-            _build_stage_data_specs,
-            _normalize_hierarchical_terms,
-        )
-
         data = config.get("data") if isinstance(config.get("data"), dict) else {}
         loader_cfg = data.get("loader") if isinstance(data.get("loader"), dict) else {}
         stage_cfgs = data.get("stages") if isinstance(data.get("stages"), list) else []
         representation = config.get("physics", {}).get("representation", {})
         rep_name = representation.get("name") if isinstance(representation, dict) else None
         objective_cfg = config.get("ml", {}).get("objective", {}) if isinstance(config.get("ml"), dict) else {}
-        stage_specs = _build_stage_data_specs(
+        stage_specs = build_stage_data_specs(
             stage_cfgs,
             loader_cfg,
             rep_name,
-            _normalize_hierarchical_terms(objective_cfg),
+            normalize_hierarchical_terms(objective_cfg),
             primary_output="energy",
         )
         return cls._resolve_stage_data(stage_specs, level_index)
 
 
 def _build_eval_descriptor_objective_args(objective_cfg):
-    from deepks.workflows.train.runtime import (
-        _build_hierarchical_descriptor_objective_args,
-        _normalize_hierarchical_terms,
-    )
-
-    terms = _normalize_hierarchical_terms(objective_cfg)
-    return _build_hierarchical_descriptor_objective_args(objective_cfg, terms)
+    terms = normalize_hierarchical_terms(objective_cfg)
+    return build_hierarchical_descriptor_objective_args(objective_cfg, terms)

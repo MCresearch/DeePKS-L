@@ -12,7 +12,7 @@ _DOCS_PATH = Path(__file__).parents[3] / 'docs' / 'input-parameter.md'
 
 def test_input_parameter_docs_not_drifted():
     """Fail if docs/input-parameter.md has drifted from render_input_parameter_doc()."""
-    from deepks.io.input import render_input_parameter_doc
+    from deepks.config import render_input_parameter_doc
 
     expected = render_input_parameter_doc()
 

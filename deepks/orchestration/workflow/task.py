@@ -8,7 +8,7 @@ import sys
 import subprocess as sp
 from copy import deepcopy
 from contextlib import nullcontext, redirect_stdout, redirect_stderr
-from deepks.orchestration.scheduler.job.dispatcher import Dispatcher
+from deepks.orchestration.scheduler.dispatcher import Dispatcher
 
 
 __all__ = ["BlankTask", "PythonTask", "ShellTask", "BatchTask", "GroupBatchTask", "DPDispatcherTask"]

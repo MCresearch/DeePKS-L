@@ -1,6 +1,6 @@
 """Regression tests for batch-script per-task completion tags."""
 
-from deepks.orchestration.scheduler.job.batch import Batch
+from deepks.orchestration.scheduler.batch import Batch
 
 
 class _DummyContext:

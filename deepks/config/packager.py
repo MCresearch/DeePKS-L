@@ -333,6 +333,8 @@ def package_config(config):
         )
         hierarchical_train_groups = data.get("train", []) if isinstance(data.get("train"), list) else []
         hierarchical_test_groups = data.get("test", []) if isinstance(data.get("test"), list) else []
+        scf_profiles = backend.get("profiles") if isinstance(backend.get("profiles"), list) else []
+        use_profile_scf = bool(scf_profiles) and not hierarchical_levels
 
         main_scf = {
             "recipe": deepcopy(main_config.get("recipe")),
@@ -393,8 +395,17 @@ def package_config(config):
             resolved_terms = _resolve_hierarchical_terms(ml)
             if resolved_terms:
                 main_train.setdefault("ml", {}).setdefault("objective", {})["terms"] = resolved_terms
+        elif use_profile_scf:
+            main_train["data"]["train"] = [
+                f"../00.scf/level.{i:02d}/data_train/*" for i in range(len(scf_profiles))
+            ]
         if data.get("test") is not None:
-            main_train["data"]["test"] = "data_test/*"
+            if use_profile_scf:
+                main_train["data"]["test"] = [
+                    f"../00.scf/level.{i:02d}/data_test/*" for i in range(len(scf_profiles))
+                ]
+            else:
+                main_train["data"]["test"] = "data_test/*"
         if isinstance(runtime.get("io"), dict):
             main_train["runtime"]["io"] = deepcopy(runtime["io"])
         if child_proj_basis:

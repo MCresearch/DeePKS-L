@@ -7,7 +7,7 @@ import pytest
 
 def test_iterate_exports():
     iter_templates = importlib.import_module("deepks.workflows.iterate.support.task_templates")
-    abacus_iter = importlib.import_module("deepks.physics.backends.abacus.iterate_sequence")
+    abacus_iter = importlib.import_module("deepks.workflows.iterate.abacus.sequence")
     iter_ops = importlib.import_module("deepks.physics.backends.abacus.iterate_ops")
 
     assert callable(iter_templates.make_train)

@@ -18,6 +18,7 @@ from .task_params import (
     build_abacus_iterate_scf_kwargs,
     materialize_hierarchical_level_scf_config,
     resolve_hierarchical_iterate_levels,
+    resolve_scf_profile_levels,
 )
 from .task_templates import (
     check_system_names,
@@ -53,6 +54,7 @@ __all__ = [
     "build_abacus_iterate_scf_kwargs",
     "materialize_hierarchical_level_scf_config",
     "resolve_hierarchical_iterate_levels",
+    "resolve_scf_profile_levels",
     "check_system_names",
     "make_cleanup",
     "make_scf_task",

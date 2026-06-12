@@ -9,7 +9,7 @@ def test_scf_workflow_imports():
     """Test that SCF workflow modules can be imported."""
     from deepks.workflows.scf import run_scf_workflow
     from deepks.workflows.scf.workflow import run_scf_workflow as workflow_main
-    from deepks.physics.backends.abacus.workflow_ops import (
+    from deepks.workflows.scf.abacus.ops import (
         build_prepare_task,
         collect_results,
         execute_sequence,
@@ -24,7 +24,7 @@ def test_scf_workflow_imports():
 
 def test_scf_workflow_dispatcher_integration():
     """Test that dispatcher can route to SCF workflow."""
-    from deepks.io.input.dispatcher import dispatch_command
+    from deepks.config.dispatcher import dispatch_command
 
     # This should not raise an error for scf type
     config = {
@@ -41,7 +41,7 @@ def test_scf_workflow_dispatcher_integration():
 
 def test_prepare_scf_tasks_abacus_validation():
     """Test that prepare_scf_tasks validates input."""
-    from deepks.physics.backends.abacus.workflow_ops import build_prepare_task
+    from deepks.workflows.scf.abacus.ops import build_prepare_task
 
     # Missing systems should raise error
     config = {'physics': {'backend': {'name': 'abacus', 'input': {}}}}
@@ -94,7 +94,7 @@ def test_scf_workflow_pyscf():
 
 def test_coord_to_atom_helper():
     """Test coord_to_atom conversion function."""
-    from deepks.physics.backends.abacus.workflow_ops import coord_to_atom
+    from deepks.workflows.scf.abacus.ops import coord_to_atom
     import tempfile
     import numpy as np
 
@@ -135,7 +135,7 @@ def test_scf_workflow_unknown_backend():
 
 def test_scf_workflow_accepts_new_interface_blocks(monkeypatch):
     from deepks.orchestration.workflow.task import BlankTask
-    from deepks.physics.backends.abacus.workflow_ops import (
+    from deepks.workflows.scf.abacus.ops import (
         build_prepare_task,
         collect_results as collect_scf_results_abacus,
         execute_sequence as execute_scf_tasks_abacus,
@@ -144,11 +144,11 @@ def test_scf_workflow_accepts_new_interface_blocks(monkeypatch):
     captured = {}
 
     monkeypatch.setattr(
-        "deepks.physics.backends.abacus.workflow_ops.prepare_abacus_input_files",
+        "deepks.workflows.scf.abacus.ops.prepare_abacus_input_files",
         lambda **kwargs: captured.setdefault("prepare", kwargs),
     )
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.load_sys_paths", lambda systems: systems)
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.os.path.exists", lambda path: True)
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.load_sys_paths", lambda systems: systems)
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.os.path.exists", lambda path: True)
 
     task = build_prepare_task({
         "type": "scf",
@@ -174,10 +174,10 @@ def test_scf_workflow_accepts_new_interface_blocks(monkeypatch):
     assert task.call_kwargs["systems"] == ["sys_a"]
     assert task.call_kwargs["scf_args"]["ecutwfc"] == 60
 
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.load_sys_paths", lambda systems: systems)
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.get_sys_name", lambda s: os.path.basename(s))
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.Sequence.run", lambda self: captured.setdefault("execute", self.child_tasks[1]))
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.coord_to_atom", lambda path: __import__("numpy").zeros((1, 1, 4)))
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.load_sys_paths", lambda systems: systems)
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.get_sys_name", lambda s: os.path.basename(s))
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.Sequence.run", lambda self: captured.setdefault("execute", self.child_tasks[1]))
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.coord_to_atom", lambda path: __import__("numpy").zeros((1, 1, 4)))
 
     execute_scf_tasks_abacus(
         BlankTask(workdir="."),
@@ -206,11 +206,11 @@ def test_scf_workflow_accepts_new_interface_blocks(monkeypatch):
     assert captured["execute"].group_size == 2
     assert captured["execute"].resources["task_per_node"] == 4
 
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.load_sys_paths", lambda systems: systems)
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.get_sys_name", lambda s: os.path.basename(s))
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops._load_system_geometry", lambda *args, **kwargs: (__import__("numpy").zeros((1, 1, 4)), __import__("numpy").zeros((1, 3, 3))))
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops._collect_system_frames", lambda *args, **kwargs: {"conv": __import__("numpy").array([[True]])})
-    monkeypatch.setattr("deepks.physics.backends.abacus.workflow_ops.np.save", lambda *args, **kwargs: None)
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.load_sys_paths", lambda systems: systems)
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.get_sys_name", lambda s: os.path.basename(s))
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops._load_system_geometry", lambda *args, **kwargs: (__import__("numpy").zeros((1, 1, 4)), __import__("numpy").zeros((1, 3, 3))))
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops._collect_system_frames", lambda *args, **kwargs: {"conv": __import__("numpy").array([[True]])})
+    monkeypatch.setattr("deepks.workflows.scf.abacus.ops.np.save", lambda *args, **kwargs: None)
 
     result = collect_scf_results_abacus({
         "type": "scf",

@@ -3,7 +3,7 @@
 import torch
 
 from deepks.interface.adapters import TaskBatchRepresentationBuilder
-from deepks.interface.batch import TaskBatch
+from deepks.io.batch import TaskBatch
 from deepks.interface.objectives.terms import build_descriptor_property_terms
 from deepks.interface.base import ObjectiveAdapter
 from deepks.interface.reducers import Identity, OutputReducer, SumOverAtoms, build_reducer

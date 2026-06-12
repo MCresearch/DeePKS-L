@@ -12,11 +12,11 @@
 
 from pathlib import Path
 
-from deepks.orchestration.scheduler.job.dispatcher import JobRecord, _split_tasks
-from deepks.orchestration.scheduler.job.local_context import LocalContext, LocalSession
-from deepks.orchestration.scheduler.job.pbs import PBS
-from deepks.orchestration.scheduler.job.shell import Shell
-from deepks.orchestration.scheduler.job.slurm import Slurm
+from deepks.orchestration.scheduler.dispatcher import JobRecord, _split_tasks
+from deepks.orchestration.scheduler.local_context import LocalContext, LocalSession
+from deepks.orchestration.scheduler.pbs import PBS
+from deepks.orchestration.scheduler.shell import Shell
+from deepks.orchestration.scheduler.slurm import Slurm
 
 
 def _mk_context(tmp_path):

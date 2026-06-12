@@ -3,9 +3,9 @@
 import pytest
 import tempfile
 import os
-from deepks.io.input import load_config, merge_configs, validate_config, get_default_config
-from deepks.io.input.config import normalize_config
-from deepks.io.input.packager import get_packed_payload, package_config
+from deepks.config import load_config, merge_configs, validate_config, get_default_config
+from deepks.config.normalize import normalize_config
+from deepks.config.packager import get_packed_payload, package_config
 from deepks.workflows.iterate.support import resolve_hierarchical_iterate_levels
 
 

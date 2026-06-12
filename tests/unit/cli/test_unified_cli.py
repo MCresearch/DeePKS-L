@@ -89,7 +89,7 @@ def test_cli_config_loading():
         config_path = f.name
 
     try:
-        from deepks.io.input import load_runtime_config
+        from deepks.config import load_runtime_config
 
         runtime = load_runtime_config(config_path)
         raw = runtime['scf_param']
@@ -128,7 +128,7 @@ def test_cli_iterate_phase_configuration():
         config_path = f.name
 
     try:
-        from deepks.io.input import load_runtime_config
+        from deepks.config import load_runtime_config
 
         runtime = load_runtime_config(config_path)
         final = runtime['iterate_param']
@@ -158,7 +158,7 @@ def test_cli_expands_dotted_backend_keys_into_nested_blocks():
         config_path = f.name
 
     try:
-        from deepks.io.input import load_runtime_config
+        from deepks.config import load_runtime_config
 
         runtime = load_runtime_config(config_path)
         raw = runtime['scf_param']
@@ -199,7 +199,7 @@ def test_cli_normalizes_iterate_phase_values():
         config_path = f.name
 
     try:
-        from deepks.io.input import load_runtime_config
+        from deepks.config import load_runtime_config
 
         runtime = load_runtime_config(config_path)
         raw = runtime['iterate_param']
@@ -231,7 +231,7 @@ def test_cli_auto_detects_cuda_device_when_user_omits_device(monkeypatch):
         config_path = f.name
 
     try:
-        from deepks.io.input import load_runtime_config
+        from deepks.config import load_runtime_config
 
         runtime = load_runtime_config(config_path)
 
@@ -268,7 +268,7 @@ def test_cli_normalizes_interface_style_train_config():
         config_path = f.name
 
     try:
-        from deepks.io.input import load_runtime_config
+        from deepks.config import load_runtime_config
 
         runtime = load_runtime_config(config_path)
         raw = runtime['train_param']
@@ -285,7 +285,7 @@ def test_cli_normalizes_interface_style_train_config():
 
 def test_dispatcher_type_detection():
     """Test type dispatcher."""
-    from deepks.io.input.dispatcher import dispatch_command
+    from deepks.config.dispatcher import dispatch_command
 
     with pytest.raises(ValueError, match="Unknown type"):
         dispatch_command({'type': 'invalid'})

@@ -1,6 +1,6 @@
 """Iterate workflow - main orchestration.
 
-This workflow now expects configuration to be normalized by ``deepks.io.input``
+This workflow now expects configuration to be normalized by ``deepks.config``
 before dispatch. It only builds and executes the iterate workflow tree.
 """
 
@@ -23,7 +23,7 @@ def run_iterate_workflow(config: Dict[str, Any]) -> Dict[str, Any]:
     3. Repeat until convergence or max iterations
 
     Args:
-        config: Iteration configuration already normalized by ``deepks.io.input``.
+        config: Iteration configuration already normalized by ``deepks.config``.
 
     Returns:
         dict: Iteration results with final model and statistics

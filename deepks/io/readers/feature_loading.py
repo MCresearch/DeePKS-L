@@ -7,8 +7,6 @@ import numpy as np
 import torch
 
 from deepks.io.transforms.linalg import generalized_eigh
-from deepks.physics.backends.abacus.integrator import make_integrator
-from deepks.physics.properties._neighbor import cal_nb_overlap
 
 
 def _select_preferred_optional_path(
@@ -175,6 +173,12 @@ def load_rspace_hamiltonian_fields(
             and "lattice" in atom_info
         ):
             # Legacy fallback: recompute overlap / iR_mat from atomic structure.
+            # These helpers live in the physics layer because they depend on
+            # pyabacus radial integrators; we import lazily so io/ stays
+            # importable when pyabacus isn't installed and the fast path is in use.
+            from deepks.physics.backends.abacus.integrator import make_integrator
+            from deepks.physics.properties._neighbor import cal_nb_overlap
+
             types = torch.tensor(atom_info["elems"])
             atoms = torch.tensor(atom_info["coords"])
             box = torch.tensor(atom_info["lattice"])

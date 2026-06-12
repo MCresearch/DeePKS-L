@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from deepks.physics.backends.abacus.iterate_ops import coord_to_atom, load_and_share_abacus_assets
-from deepks.physics.backends.abacus.iterate_sequence import make_convert_scf_abacus
+from deepks.workflows.iterate.abacus.sequence import make_convert_scf_abacus
 from deepks.orchestration.workflow.task import PythonTask
 
 
@@ -49,7 +49,7 @@ def test_coord_to_atom_missing_coord_raises(tmp_path):
 
 def test_make_convert_scf_abacus_returns_pythontask(tmp_path):
 	"""
-	依赖：`deepks.physics.backends.abacus.iterate_sequence.make_convert_scf_abacus`。
+	依赖：`deepks.workflows.iterate.abacus.sequence.make_convert_scf_abacus`。
 	测试内容：在本地无集群环境下，验证该函数能构建可执行 `PythonTask` 且参数完整。
 	"""
 	trn = tmp_path / "group.00"

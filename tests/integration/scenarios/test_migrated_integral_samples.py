@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from deepks.io.input import load_runtime_config, dispatch_command
+from deepks.config import load_runtime_config, dispatch_command
 from deepks.io.utils import load_yaml
 
 

@@ -14,7 +14,7 @@
 
 - `unit/`
   - 只测子功能与局部边界。
-  - 目录结构尽量镜像源码架构，例如 `io/input`、`workflows/iterate`、`orchestration/scheduler`。
+  - 目录结构尽量镜像源码架构，例如 `config/`、`workflows/iterate`、`orchestration/scheduler`。
 
 - `integration/`
   - 测完整工作流或多层协作。

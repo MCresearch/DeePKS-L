@@ -261,7 +261,7 @@ workflow.run()
 Submit jobs to schedulers:
 
 ```python
-from deepks.orchestration.scheduler.job.dispatcher import Dispatcher
+from deepks.orchestration.scheduler.dispatcher import Dispatcher
 
 dispatcher = Dispatcher(
     work_dir="jobs",

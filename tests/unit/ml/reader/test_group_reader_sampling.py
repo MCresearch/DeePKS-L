@@ -9,7 +9,7 @@
 import numpy as np
 
 from deepks.io.readers import GroupReader
-from deepks.interface.batch import TaskBatch
+from deepks.io.batch import TaskBatch
 
 
 def _make_sys(path, nframe, natm, ndesc):

@@ -12,7 +12,7 @@ def test_iterate_workflow_imports():
     from deepks.workflows.iterate.workflow import run_iterate_workflow as workflow_main
     from deepks.workflows.iterate.prepare import prepare_iterate
     from deepks.workflows.iterate.support import build_abacus_iterate_scf_kwargs, make_scf, make_train
-    from deepks.physics.backends.abacus.iterate_sequence import make_scf_abacus
+    from deepks.workflows.iterate.abacus.sequence import make_scf_abacus
 
     assert callable(run_iterate_workflow)
     assert callable(workflow_main)
@@ -25,7 +25,7 @@ def test_iterate_workflow_imports():
 
 def test_iterate_workflow_dispatcher_integration():
     """Test that dispatcher can route to iterate workflow."""
-    from deepks.io.input.dispatcher import dispatch_command
+    from deepks.config.dispatcher import dispatch_command
 
     # This should not raise an error for iterate type
     runtime_config = {
@@ -65,7 +65,7 @@ def test_prepare_iterate_validation():
 def test_iterate_workflow_config_structure():
     """Test that workflow accepts proper config structure."""
     from deepks.workflows.iterate.workflow import run_iterate_workflow
-    from deepks.io.input import load_runtime_config
+    from deepks.config import load_runtime_config
 
     # This should fail gracefully with proper error messages
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
@@ -97,7 +97,7 @@ def test_iterate_workflow_config_structure():
 
 
 def test_run_iterate_workflow_uses_input_normalized_config(monkeypatch, tmp_path):
-    """Workflow should receive config already normalized by io.input."""
+    """Workflow should receive config already normalized by deepks.config."""
     from deepks.workflows.iterate import workflow as workflow_module
 
     train_sys = tmp_path / "sys.train"
@@ -202,7 +202,7 @@ def test_prepare_iterate_accepts_use_init_and_phase_values(tmp_path):
         },
     }
 
-    from deepks.io.input.packager import package_config
+    from deepks.config.packager import package_config
 
     workflow, workdir, record_file = prepare_iterate(package_config(config)['iterate_param'])
 
@@ -268,7 +268,7 @@ def test_check_share_folder_none():
 def test_create_scf_step_abacus():
     """Test ABACUS iterate SCF sequence builder."""
     from deepks.workflows.iterate.support import build_abacus_iterate_scf_kwargs
-    from deepks.physics.backends.abacus.iterate_sequence import make_scf_abacus
+    from deepks.workflows.iterate.abacus.sequence import make_scf_abacus
 
     # Should create SCF step without error (will fail on execution, not creation)
     # Use a dummy system path that will be validated later
@@ -370,7 +370,7 @@ def test_create_train_step():
 
 def test_prepare_iterate_creates_level_specific_scf_sequences_for_hierarchical_recipe(tmp_path):
     from deepks.workflows.iterate.prepare import prepare_iterate
-    from deepks.io.input.packager import package_config
+    from deepks.config.packager import package_config
 
     systems_sz_train = tmp_path / "systems_sz" / "data_train"
     systems_sz_test = tmp_path / "systems_sz" / "data_test"

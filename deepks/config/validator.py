@@ -171,11 +171,30 @@ def _validate_iterate_config(config):
         if n_iter < 0:
             raise ValueError(f"'n_iter' must be non-negative, got {n_iter}")
 
+    physics = config.get("physics") if isinstance(config.get("physics"), dict) else {}
+    backend = physics.get("backend") if isinstance(physics.get("backend"), dict) else {}
+    scf_profiles = backend.get("profiles") if isinstance(backend.get("profiles"), list) else []
     backend_name = _validate_scf_backend_name(config)
     if backend_name == 'pyscf':
         _validate_pyscf_block(config)
     else:
-        _validate_abacus_block(config, require_files=(recipe_name != HIERARCHICAL_REGRESSION_RECIPE_NAME))
+        # Per-basis SCF profiles supply orb_files individually, so the global
+        # physics.backend.input.orb_files requirement is relaxed when present.
+        require_files = recipe_name != HIERARCHICAL_REGRESSION_RECIPE_NAME and not scf_profiles
+        _validate_abacus_block(config, require_files=require_files)
+        # Profile-driven per-basis SCF (non-hierarchical): each profile must
+        # carry its own orb_files (or an input_template). The hierarchical
+        # recipe validates its own profiles in _validate_hierarchical_iterate_config.
+        if recipe_name != HIERARCHICAL_REGRESSION_RECIPE_NAME:
+            for i, prof in enumerate(scf_profiles):
+                prof_input = prof.get("input", {}) if isinstance(prof, dict) else {}
+                has_orb = isinstance(prof_input, dict) and prof_input.get("orb_files")
+                has_template = isinstance(prof, dict) and prof.get("input_template") is not None
+                if not (has_orb or has_template):
+                    raise ValueError(
+                        f"physics.backend.profiles[{i}] requires 'input.orb_files' "
+                        "(or 'input_template') for per-basis SCF"
+                    )
 
 
 def _validate_hierarchical_iterate_config(config):

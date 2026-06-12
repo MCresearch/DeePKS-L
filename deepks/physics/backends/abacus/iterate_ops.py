@@ -14,7 +14,7 @@ try:
 except ImportError:  # pragma: no cover - optional at runtime
     torch = None
 
-from deepks.workflows.iterate.support import check_share_folder
+from deepks.io.utils import check_share_folder
 from deepks.physics.constants import NAME_TYPE, TYPE_NAME
 from deepks.io.utils import flat_file_list, get_sys_name, load_dirs, load_sys_paths
 from deepks.io.utils import coerce_box, coerce_energy, coerce_stress
@@ -522,7 +522,7 @@ def gather_stats_abacus(systems_train, systems_test,
 
     _process_systems(sys_train_paths, sys_train_names, train_dump)
     _process_systems(sys_test_paths, sys_test_names, test_dump)
-    from deepks.workflows.stats.runtime import print_stats
+    from deepks.io.reporting import print_stats
     print_stats(
         systems=systems_train, test_sys=systems_test,
         dump_dir=train_dump, test_dump=test_dump, group=False,

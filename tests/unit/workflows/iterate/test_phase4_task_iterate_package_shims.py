@@ -15,12 +15,12 @@ def test_task_package_exports():
 
 
 def test_task_job_package_exports():
-    job_pkg = importlib.import_module("deepks.orchestration.scheduler.job")
-    dispatcher_mod = importlib.import_module("deepks.orchestration.scheduler.job.dispatcher")
+    job_pkg = importlib.import_module("deepks.orchestration.scheduler")
+    dispatcher_mod = importlib.import_module("deepks.orchestration.scheduler.dispatcher")
 
-    assert job_pkg.__name__ == "deepks.orchestration.scheduler.job"
-    assert dispatcher_mod.Dispatcher.__module__ == "deepks.orchestration.scheduler.job.dispatcher"
-    assert dispatcher_mod._split_tasks.__module__ == "deepks.orchestration.scheduler.job.dispatcher"
+    assert job_pkg.__name__ == "deepks.orchestration.scheduler"
+    assert dispatcher_mod.Dispatcher.__module__ == "deepks.orchestration.scheduler.dispatcher"
+    assert dispatcher_mod._split_tasks.__module__ == "deepks.orchestration.scheduler.dispatcher"
 
 
 def test_iterate_package_exports():

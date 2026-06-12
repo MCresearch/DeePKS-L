@@ -17,8 +17,12 @@ from deepks.orchestration.workflow.workflow import Sequence
 from deepks.physics.backends.types import SCFResult
 from deepks.physics.constants import NAME_TYPE, TYPE_NAME
 
-from .input_generator import make_abacus_scf_input, make_abacus_scf_kpt, make_abacus_scf_stru
-from .parser import parse_abacus_output
+from deepks.physics.backends.abacus.input_generator import (
+    make_abacus_scf_input,
+    make_abacus_scf_kpt,
+    make_abacus_scf_stru,
+)
+from deepks.physics.backends.abacus.parser import parse_abacus_output
 
 
 def coord_to_atom(path):
