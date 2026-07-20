@@ -8,12 +8,12 @@ import numpy as np
 
 # sys.path.append('/path/to/source')
 import deepks
-from deepks.task.task import PythonTask
-from deepks.task.task import ShellTask
-from deepks.task.task import BatchTask
-from deepks.task.task import GroupBatchTask
-from deepks.task.workflow import Sequence
-from deepks.task.workflow import Iteration
+from deepks.orchestration.workflow.task import PythonTask
+from deepks.orchestration.workflow.task import ShellTask
+from deepks.orchestration.workflow.task import BatchTask
+from deepks.orchestration.workflow.task import GroupBatchTask
+from deepks.orchestration.workflow.workflow import Sequence
+from deepks.orchestration.workflow.workflow import Iteration
 
 
 # define key parameters

@@ -27,8 +27,8 @@ setuptools.setup(
     python_requires=">=3.7",
     entry_points={
         'console_scripts': [
-            'deepks=deepks.main:main_cli',
-            'dks=deepks.main:main_cli',
+            'deepks=deepks.main:main',
+            'dks=deepks.main:main',
         ],
     },
 )

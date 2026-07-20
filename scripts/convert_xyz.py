@@ -1,7 +1,8 @@
 import os
 import numpy as np
 from glob import glob
-from deepks.default import BOHR2ANG, ELEMENTS, NAME_TYPE
+from deepks.physics.defaults import BOHR2ANG
+from deepks.physics.defaults import ELEMENTS, NAME_TYPE
 
 def parse_xyz(filename):
     with open(filename) as fp:

@@ -7,9 +7,9 @@ import numpy as np
 
 # sys.path.append('/path/to/source')
 import deepks
-from deepks.scf.stats import collect_data_grouped
-from deepks.task.task import PythonTask, BatchTask, GroupBatchTask
-from deepks.task.workflow import Sequence, Iteration
+from deepks.physics.backends.pyscf.stats import collect_data_grouped
+from deepks.orchestration.workflow.task import PythonTask, BatchTask, GroupBatchTask
+from deepks.orchestration.workflow.workflow import Sequence, Iteration
 
 nsys = 1
 niter = 25

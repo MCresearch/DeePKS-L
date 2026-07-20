@@ -1,3 +1,0 @@
-systems:
-  - "../data/data_train/"
-dump_dir: "../data/"
